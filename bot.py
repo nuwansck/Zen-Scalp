@@ -1,4 +1,4 @@
-"""Main orchestrator for Zen Scalp v1.0 — EUR/GBP + AUD/USD M5 Scalper
+"""Main orchestrator for Zen Scalp v1.1 — EUR/GBP + AUD/USD M5 Scalper
 
 Dedicated EUR/GBP + AUD/USD (Zen) scalping bot. Single pair, clean data, focused strategy.
 
@@ -47,6 +47,7 @@ from telegram_templates import (
     msg_news_block, msg_news_penalty, msg_cooldown_started, msg_daily_cap,
     msg_spread_skip, msg_order_failed, msg_error, msg_friday_cutoff,
     msg_margin_adjustment, msg_new_day_resume, msg_session_open,
+    msg_session_open_multi,
 )
 from reconcile_state import reconcile_runtime_state, startup_oanda_reconcile
 
@@ -131,7 +132,7 @@ def _pip_size(settings: dict) -> float:
 def _pip_dp(pip: float) -> int:
     """Decimal places for price rounding given pip size."""
     if pip <= 0.0001: return 5   # EUR_GBP (Zen)
-    if pip <= 0.01:   return 3   # JPY pairs (not used in Zen Scalp v1.0)
+    if pip <= 0.01:   return 3   # JPY pairs (not used in Zen Scalp v1.1)
     return 2
 
 
@@ -193,7 +194,7 @@ def _signal_payload(**kwargs):
 # ── Settings ──────────────────────────────────────────────────────────────────
 
 def validate_settings(settings: dict) -> dict:
-    required = ["pairs"]  # Zen Scalp v1.0: pair_sl_tp fixed pips used exclusively
+    required = ["pairs"]  # Zen Scalp v1.1: pair_sl_tp fixed pips used exclusively
     missing  = [k for k in required if k not in settings]
     if missing:
         raise ValueError(f"Missing required settings keys: {missing}")
@@ -1018,16 +1019,27 @@ def _guard_phase(db, run_id, settings, alert, history, now_sgt, today, demo,
                 _dp, _dc, _ = daily_totals(history, today, instrument=instrument)
                 _wk   = get_window_key(session)
                 _wcap = get_window_trade_cap(_wk, settings) or 0
+                # Build combined multi-pair card (EUR_GBP + AUD_USD together)
+                _all_pairs     = list(settings.get("pairs", {}).keys())
+                _pair_stats    = []
+                for _p in _all_pairs:
+                    _pd, _dc2, _ = daily_totals(history, today, instrument=_p)
+                    _pair_stats.append({
+                        "instrument":   _p,
+                        "trades_today": _dc2,
+                        "daily_pnl":    _pd,
+                    })
+                _card = msg_session_open_multi(
+                    session_name=session,
+                    session_hours_sgt=_sess_hours,
+                    pairs=_pair_stats,
+                    trade_cap=_wcap,
+                )
+                # Send once per session per day (keyed to first pair only)
                 send_once_per_state(
                     alert, ops,
                     "session_open_state", f"session_open:{session}:{today}",
-                    msg_session_open(
-                        session_name=f"{instrument} {session}",
-                        session_hours_sgt=_sess_hours,
-                        trade_cap=_wcap,
-                        trades_today=_dc,
-                        daily_pnl=_dp,
-                    ), instrument)
+                    _card, instrument)
         ops["last_session"] = session
         ops.pop("ops_state", None)
         save_ops_state(ops, instrument)

@@ -4,7 +4,7 @@
 
 ## v1.0.0 — 2026-04-17
 
-Initial release of **Zen Scalp v1.0** — EUR/GBP + AUD/USD M15 mean reversion bot.
+Initial release of **Zen Scalp v1.1** — EUR/GBP + AUD/USD M15 mean reversion bot.
 Built from Cable Scalp v1.5 infrastructure. Signal engine completely rewritten.
 
 ### Strategy — Bollinger Band + RSI Mean Reversion
@@ -58,7 +58,7 @@ Full parity with Cable Scalp v1.5:
 
 ### Key differences from Cable Scalp v1.5
 
-| | Cable Scalp v1.5 | Zen Scalp v1.0 |
+| | Cable Scalp v1.5 | Zen Scalp v1.1 |
 |---|---|---|
 | Signal | EMA + ORB momentum | BB + RSI mean reversion |
 | Pairs | GBP/USD | EUR/GBP + AUD/USD |
@@ -67,3 +67,44 @@ Full parity with Cable Scalp v1.5:
 | US session | Enabled | Disabled |
 | max_total_open | 1 | 2 (one per pair) |
 | max_losing/day | 8 | 6 (tighter) |
+
+---
+
+## v1.1.0 — 2026-04-17
+
+### Fix 1 — Critical: Candle fetch bug
+
+**Problem:** `SignalEngine.analyze()` called `self.trader.get_candles()` which
+doesn't exist in `OandaTrader`. Every cycle logged:
+`[EUR_GBP] Candle fetch failed: 'OandaTrader' object has no attribute 'get_candles'`
+Bot was running but never scoring a signal — zero trades possible.
+
+**Fix:** Rewrote `signals.py` to use the same `_fetch_candles()` internal HTTP
+pattern as Cable Scalp v1.5. `SignalEngine` now owns its own `self.session` and
+makes OANDA candle API calls directly (same approach, proven in production).
+
+### Fix 2 — Combined session open card
+
+**Problem:** Two separate Telegram cards fired at each session open:
+- `EUR_GBP Tokyo Window Open`
+- `AUD_USD Tokyo Window Open`
+
+Cluttered and redundant for a multi-pair bot.
+
+**Fix:** New `msg_session_open_multi()` in `telegram_templates.py`. Single card:
+```
+🗼 Zen Scalp — Asian Window Open  08:00–15:59 SGT
+──────────────────────
+EUR/GBP  Today: 0 trade(s)  —  |  cap 6
+AUD/USD  Today: 0 trade(s)  —  |  cap 6
+Scanning for BB + RSI setups...
+```
+
+### Fix 3 — Wrong strategy text in session card
+
+**Problem:** Session card said "Scanning for EMA + ORB setups..." — wrong strategy.
+
+**Fix:** Updated to "Scanning for BB + RSI setups..."
+
+**Files changed:** `signals.py` (full rewrite), `telegram_templates.py`,
+`bot.py` (session open block)

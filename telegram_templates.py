@@ -1,4 +1,4 @@
-"""Telegram message templates for Zen Scalp v1.0
+"""Telegram message templates for Zen Scalp v1.1
 AtomicFX-style: clean, state-change only, minimal noise.
 """
 from __future__ import annotations
@@ -36,7 +36,7 @@ def _split_banner(banner: str) -> tuple[str, str]:
     """Extract pair from banner.
     Handles both:
       '🇬🇧 LONDON [EUR/GBP + AUD/USD]'  → ('🇬🇧 LONDON [EUR/GBP + AUD/USD]', 'EUR/GBP + AUD/USD')
-      'Zen Scalp v1.0 | EUR/GBP + AUD/USD' → ('Zen Scalp v1.0', 'EUR/GBP + AUD/USD')
+      'Zen Scalp v1.1 | EUR/GBP + AUD/USD' → ('Zen Scalp v1.1', 'EUR/GBP + AUD/USD')
     """
     if "[" in banner and "]" in banner:
         pair = banner[banner.index("[")+1 : banner.index("]")]
@@ -315,9 +315,32 @@ def msg_session_open(session_name, session_hours_sgt, trade_cap,
         f"{icon} {session_name} Open  {session_hours_sgt} SGT\n"
         f"{_DIV}\n"
         f"Today:  {trades_today} trade(s)  {pnl_str}  |  cap {trade_cap}\n"
-        f"Scanning for EMA + ORB setups..."
+        f"Scanning for BB + RSI setups..."
     )
 
+
+
+# ── 9b. Combined multi-pair session open (Zen Scalp) ─────────────────────────
+
+def msg_session_open_multi(session_name: str, session_hours_sgt: str,
+                            pairs: list, trade_cap: int) -> str:
+    """Combined session open card for multi-pair bots (EUR_GBP + AUD_USD).
+
+    pairs: list of dicts with keys: instrument, trades_today, daily_pnl
+    """
+    icon = _session_icon(session_name)
+    lines = [
+        f"{icon} Zen Scalp — {session_name} Open  {session_hours_sgt} SGT",
+        _DIV,
+    ]
+    for p in pairs:
+        instr   = p.get("instrument", "").replace("_", "/")
+        n       = p.get("trades_today", 0)
+        pnl     = p.get("daily_pnl", 0.0)
+        pnl_str = f"${pnl:+.2f}" if n > 0 else "—"
+        lines.append(f"{instr}  Today: {n} trade(s)  {pnl_str}  |  cap {trade_cap}")
+    lines.append("Scanning for BB + RSI setups...")
+    return "\n".join(lines)
 
 # ── 10. Spread skip ───────────────────────────────────────────────────────────
 

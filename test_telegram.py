@@ -1,5 +1,5 @@
 """
-Telegram connection test — Zen Scalp v1.0
+Telegram connection test — Zen Scalp v1.1
 Run: python test_telegram.py
 """
 from telegram_alert import TelegramAlert

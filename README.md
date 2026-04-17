@@ -1,4 +1,4 @@
-# Zen Scalp v1.0 — EUR/GBP + AUD/USD M15 Mean Reversion Bot
+# Zen Scalp v1.1 — EUR/GBP + AUD/USD M15 Mean Reversion Bot
 
 > **Deployed on Railway · OANDA API · Telegram Alerts**
 
@@ -88,7 +88,7 @@ Fixed at 20 pips — if price continues beyond the band, the trade is wrong.
 
 ## Correlation with existing bots
 
-| | Cable Scalp v1.5 | Fiber Scalp v1.5 | Zen Scalp v1.0 |
+| | Cable Scalp v1.5 | Fiber Scalp v1.5 | Zen Scalp v1.1 |
 |---|---|---|---|
 | Pairs | GBP/USD | EUR/USD | EUR/GBP + AUD/USD |
 | Signal | EMA + ORB momentum | EMA + ORB momentum | BB + RSI mean reversion |
