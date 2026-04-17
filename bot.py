@@ -1,4 +1,4 @@
-"""Main orchestrator for Zen Scalp v1.1 — EUR/GBP + AUD/USD M5 Scalper
+"""Main orchestrator for Zen Scalp v1.2 — EUR/GBP + AUD/USD M5 Scalper
 
 Dedicated EUR/GBP + AUD/USD (Zen) scalping bot. Single pair, clean data, focused strategy.
 
@@ -132,7 +132,7 @@ def _pip_size(settings: dict) -> float:
 def _pip_dp(pip: float) -> int:
     """Decimal places for price rounding given pip size."""
     if pip <= 0.0001: return 5   # EUR_GBP (Zen)
-    if pip <= 0.01:   return 3   # JPY pairs (not used in Zen Scalp v1.1)
+    if pip <= 0.01:   return 3   # JPY pairs (not used in Zen Scalp v1.2)
     return 2
 
 
@@ -194,7 +194,7 @@ def _signal_payload(**kwargs):
 # ── Settings ──────────────────────────────────────────────────────────────────
 
 def validate_settings(settings: dict) -> dict:
-    required = ["pairs"]  # Zen Scalp v1.1: pair_sl_tp fixed pips used exclusively
+    required = ["pairs"]  # Zen Scalp v1.2: pair_sl_tp fixed pips used exclusively
     missing  = [k for k in required if k not in settings]
     if missing:
         raise ValueError(f"Missing required settings keys: {missing}")
@@ -266,7 +266,8 @@ def validate_settings(settings: dict) -> dict:
     settings.setdefault("min_trade_units",           1000)
     # EUR/GBP + AUD/USD only
     settings.setdefault("pair_sl_tp", {
-        "EUR_GBP": {"sl_pips": 18, "tp_pips": 30, "pip_value_usd": 10.0, "be_trigger_pips": 20},
+        "EUR_GBP": {"sl_pips": 20, "tp_pips": 30, "pip_value_usd": 11.0, "be_trigger_pips": 22},
+        "AUD_USD": {"sl_pips": 20, "tp_pips": 30, "pip_value_usd": 10.0, "be_trigger_pips": 22},
     })
     # dead zone = pre-Tokyo gap 04:00–07:59 SGT (overrides any stale setdefault above)
     settings["dead_zone_start_hour"] = int(settings.get("dead_zone_start_hour", 4))

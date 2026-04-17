@@ -1,4 +1,4 @@
-# Zen Scalp v1.1 — Settings Reference
+# Zen Scalp v1.2 — Settings Reference
 
 ---
 
@@ -6,7 +6,7 @@
 
 | Key | Value |
 |---|---|
-| `bot_name` | `"Zen Scalp v1.1"` |
+| `bot_name` | `"Zen Scalp v1.2"` |
 | `demo_mode` | `true` |
 
 ---

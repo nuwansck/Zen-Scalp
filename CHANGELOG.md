@@ -4,7 +4,7 @@
 
 ## v1.0.0 — 2026-04-17
 
-Initial release of **Zen Scalp v1.1** — EUR/GBP + AUD/USD M15 mean reversion bot.
+Initial release of **Zen Scalp v1.2** — EUR/GBP + AUD/USD M15 mean reversion bot.
 Built from Cable Scalp v1.5 infrastructure. Signal engine completely rewritten.
 
 ### Strategy — Bollinger Band + RSI Mean Reversion
@@ -58,7 +58,7 @@ Full parity with Cable Scalp v1.5:
 
 ### Key differences from Cable Scalp v1.5
 
-| | Cable Scalp v1.5 | Zen Scalp v1.1 |
+| | Cable Scalp v1.5 | Zen Scalp v1.2 |
 |---|---|---|
 | Signal | EMA + ORB momentum | BB + RSI mean reversion |
 | Pairs | GBP/USD | EUR/GBP + AUD/USD |
@@ -108,3 +108,37 @@ Scanning for BB + RSI setups...
 
 **Files changed:** `signals.py` (full rewrite), `telegram_templates.py`,
 `bot.py` (session open block)
+
+---
+
+## v1.2.0 — 2026-04-17
+
+### Fix 1 — SL/TP using emergency fallback (18p) instead of settings (20p)
+
+**Problem:** `signals.py` returned CPR levels dict without injecting
+`sl_price_dist` / `tp_price_dist`. `bot.py compute_sl_usd` couldn't find them
+→ fell back to hardcoded 18p emergency SL. Observed in first live trade:
+`compute_sl_usd: no valid SL in levels — using 18p emergency fallback`
+
+**Fix:** Added full SL/TP/RR/H1 injection block at end of `analyze()`:
+- `sl_price_dist` = 20p × pip_size → correct price distance for order placement
+- `tp_price_dist` = 30p × pip_size → TP at ~middle band
+- `sl_usd_rec`, `tp_usd_rec`, `rr_ratio`, `h1_trend`, `h1_aligned` all injected
+- Same pattern as Cable Scalp v1.5 signals.py
+
+### Fix 2 — Wrong pip_value and sl_pips in bot.py defaults
+
+**Problem:** bot.py setdefault had `EUR_GBP sl_pips: 18, pip_value: 10.0`
+(copied from Cable Scalp). AUD_USD was missing entirely.
+
+**Fix:**
+- EUR_GBP: sl_pips 18 → **20**, pip_value 10.0 → **11.0** (GBP-quoted)
+- AUD_USD: **added** sl_pips 20, tp_pips 30, pip_value 10.0
+- settings.json updated to match
+
+### Fix 3 — "(Zen)" suffix removed from pair display
+
+**Problem:** Startup card showed `EUR/GBP + AUD/USD (Zen)` — user found
+the "(Zen)" suffix redundant given the bot name already says Zen Scalp.
+
+**Fix:** Pair line now shows `EUR/GBP + AUD/USD`

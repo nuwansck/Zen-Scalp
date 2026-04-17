@@ -1,6 +1,6 @@
-# Zen Scalp v1.1 — Technical Specification & Operations Wiki
+# Zen Scalp v1.2 — Technical Specification & Operations Wiki
 
-**Bot:** Zen Scalp v1.1  **Pairs:** EUR/GBP + AUD/USD  **Exchange:** OANDA (demo)
+**Bot:** Zen Scalp v1.2  **Pairs:** EUR/GBP + AUD/USD  **Exchange:** OANDA (demo)
 **Platform:** Railway (Singapore region)  **Timeframe:** M15  **Cycle:** 5 min
 
 ---

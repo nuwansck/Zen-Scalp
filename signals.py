@@ -1,4 +1,4 @@
-"""Signal engine for Bollinger Band + RSI mean reversion — Zen Scalp v1.1
+"""Signal engine for Bollinger Band + RSI mean reversion — Zen Scalp v1.2
 
 Strategy: Mean Reversion using Bollinger Bands (20, 2σ) + RSI (14)
 Pairs:     EUR_GBP, AUD_USD
@@ -247,6 +247,62 @@ class SignalEngine:
             instrument, setup_name, direction, score,
             rsi_val, upper, mid, lower, current_price,
         )
+
+        # ── 8. Inject SL/TP/RR/H1 into levels dict ───────────────────────────
+        # bot.py's compute_sl_usd / compute_tp_usd look for sl_price_dist and
+        # tp_price_dist in the levels dict. We must inject them here.
+        _sl_pips     = int(pair_cfg.get("sl_pips", 20))
+        _tp_pips     = int(pair_cfg.get("tp_pips", 30))
+        _pip_val_usd = float(pair_cfg.get("pip_value_usd", 10.0))
+        _pip_usd_unit = _pip_val_usd / 100_000   # $ per unit per pip
+
+        sl_price_dist = round(_sl_pips * pip_size, dp + 2)
+        tp_price_dist = round(_tp_pips * pip_size, dp + 2)
+        sl_usd_rec    = round(_sl_pips * _pip_usd_unit, dp + 2)
+        tp_usd_rec    = round(_tp_pips * _pip_usd_unit, dp + 2)
+        rr_ratio      = round(tp_usd_rec / sl_usd_rec, 2) if sl_usd_rec > 0 else 0
+
+        # H1 trend label (soft mode)
+        _h1_period  = int(s.get("h1_ema_period", 21))
+        _h1_enabled = bool(s.get("h1_filter_enabled", True))
+        if _h1_enabled:
+            h1_info = self._get_h1_trend(instrument, _h1_period, dp)
+        else:
+            h1_info = {"h1_trend": "DISABLED", "h1_ema_now": None, "h1_price": None}
+
+        _h1_aligned = (
+            (h1_info["h1_trend"] == "BEARISH" and direction == "SELL") or
+            (h1_info["h1_trend"] == "BULLISH" and direction == "BUY")  or
+            h1_info["h1_trend"] in ("UNKNOWN", "DISABLED", "FLAT")
+        )
+
+        # Inject into levels
+        if cpr_levels is None:
+            cpr_levels = {}
+        cpr_levels["sl_price_dist"] = sl_price_dist
+        cpr_levels["tp_price_dist"] = tp_price_dist
+        cpr_levels["sl_usd_rec"]    = sl_usd_rec
+        cpr_levels["tp_usd_rec"]    = tp_usd_rec
+        cpr_levels["rr_ratio"]      = rr_ratio
+        cpr_levels["sl_pips"]       = _sl_pips
+        cpr_levels["tp_pips"]       = _tp_pips
+        cpr_levels["pip_size"]      = pip_size
+        cpr_levels["entry"]         = round(current_price, dp)
+        cpr_levels["setup"]         = setup_name
+        cpr_levels["score"]         = score
+        cpr_levels["position_usd"]  = score_to_position_usd(score, s)
+        cpr_levels["h1_trend"]      = h1_info["h1_trend"]
+        cpr_levels["h1_ema_now"]    = h1_info.get("h1_ema_now")
+        cpr_levels["h1_aligned"]    = _h1_aligned
+        cpr_levels["mandatory_checks"] = {
+            "score_ok": score >= thr,
+            "rr_ok":    rr_ratio >= float(s.get("min_rr_ratio", 1.4)),
+        }
+        cpr_levels["signal_blockers"] = []
+        cpr_levels["bb_upper"]   = round(upper,         dp + 1)
+        cpr_levels["bb_mid"]     = round(mid,           dp + 1)
+        cpr_levels["bb_lower"]   = round(lower,         dp + 1)
+        cpr_levels["rsi"]        = round(rsi_val,       1)
 
         if score < thr:
             return score, direction, f"Score {score}/6 below threshold ({thr})", cpr_levels, 0
