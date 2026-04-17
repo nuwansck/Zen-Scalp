@@ -23,17 +23,15 @@ v1.1: Fixed candle fetch — uses internal _fetch_candles (same pattern as
       Cable Scalp v1.5) instead of non-existent trader.get_candles().
 """
 
-import json
 import logging
 import math
 import time
 from datetime import datetime
-from pathlib import Path
 
 import pytz
-import requests
 
-from config_loader import DATA_DIR, load_secrets, make_oanda_session
+from config_loader import DATA_DIR, load_secrets
+from oanda_trader import make_oanda_session
 
 log = logging.getLogger(__name__)
 
