@@ -117,7 +117,7 @@ def load_settings() -> dict:
 
     original_keys = set(settings.keys())
 
-    settings.setdefault('bot_name', 'Zen Scalp v1.2')
+    settings.setdefault('bot_name', 'Zen Scalp v1.3')
     settings.setdefault('enabled', True)
     settings.setdefault('cycle_minutes', 5)
     settings.setdefault('db_retention_days', 90)
@@ -137,7 +137,7 @@ def load_settings() -> dict:
     # Signal engine
     settings.setdefault('orb_fresh_minutes',         60)
     settings.setdefault('orb_aging_minutes',         120)
-    settings.setdefault('min_rr_ratio',              1.6)   # 1.67x RR for GBP/USD
+    settings.setdefault('min_rr_ratio',              1.6)   # 1.5x RR for EUR/GBP + AUD/USD
     # H1 trend filter
     settings.setdefault('h1_filter_enabled',        True)
     settings.setdefault('h1_filter_mode',           'soft')  # 'soft'=observe only | 'strict'=block
@@ -175,7 +175,7 @@ def load_settings() -> dict:
     # minimum units after margin guard — reject micro-orders gracefully
     settings.setdefault('min_trade_units',           1000)
     settings.setdefault('telegram_min_score_alert',   3)  # suppress WATCHING below this score
-    # GBP/USD fixed pip SL/TP — pip_value_usd $10.00 static (USD-quoted pair)
+    # EUR/GBP + AUD/USD fixed pip SL/TP — pip_value_usd per pair static (USD-quoted pair)
     settings.setdefault('pair_sl_tp', {
         'EUR_GBP': {'sl_pips': 20, 'tp_pips': 30, 'pip_value_usd': 11.0, 'be_trigger_pips': 22},
         'AUD_USD': {'sl_pips': 20, 'tp_pips': 30, 'pip_value_usd': 10.0, 'be_trigger_pips': 22},

@@ -1,4 +1,4 @@
-"""OANDA execution layer for the RF Scalp Bot.
+"""OANDA execution layer for the Zen Scalp Bot.
 
 Handles pricing, order placement, trade lookup, stop updates, and retry-safe
 HTTP communication with OANDA.

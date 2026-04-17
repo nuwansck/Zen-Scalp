@@ -1,12 +1,12 @@
 """
-Telegram connection test — Zen Scalp v1.2
+Telegram connection test — Zen Scalp v1.3
 Run: python test_telegram.py
 """
 from telegram_alert import TelegramAlert
 from config_loader import load_settings
 
 if __name__ == "__main__":
-    _name = load_settings().get("bot_name", "RF Scalp")
+    _name = load_settings().get("bot_name", "Zen Scalp")
     alert = TelegramAlert()
     ok = alert.send(
         f"✅ Test message — Telegram is connected and working!\n"

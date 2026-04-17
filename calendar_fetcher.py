@@ -1,5 +1,5 @@
 """
-Forex Factory calendar fetcher for the RF Scalp Bot.
+Forex Factory calendar fetcher for the Zen Scalp Bot.
 
 Architecture-only improvements:
 - Uses /data/runtime_state.json cooldown tracking

@@ -1,4 +1,4 @@
-"""Main orchestrator for Zen Scalp v1.2 — EUR/GBP + AUD/USD M5 Scalper
+"""Main orchestrator for Zen Scalp v1.3 — EUR/GBP + AUD/USD M5 Scalper
 
 Dedicated EUR/GBP + AUD/USD (Zen) scalping bot. Single pair, clean data, focused strategy.
 
@@ -12,7 +12,7 @@ Architecture:
   run_bot_cycle() loops over every enabled pair each 5-minute cycle.
   For each pair it runs three phases:
     _guard_phase()      — pre-trade checks (session, caps, cooldown, OANDA)
-    _signal_phase()     — EMA + ORB + CPR scoring, sizing, margin guard
+    _signal_phase()     — BB + RSI mean reversion scoring, sizing, margin guard
     _execution_phase()  — order placement and history persistence
 
 State isolation:
@@ -132,7 +132,7 @@ def _pip_size(settings: dict) -> float:
 def _pip_dp(pip: float) -> int:
     """Decimal places for price rounding given pip size."""
     if pip <= 0.0001: return 5   # EUR_GBP (Zen)
-    if pip <= 0.01:   return 3   # JPY pairs (not used in Zen Scalp v1.2)
+    if pip <= 0.01:   return 3   # JPY pairs (not used in Zen Scalp v1.3)
     return 2
 
 
@@ -194,7 +194,7 @@ def _signal_payload(**kwargs):
 # ── Settings ──────────────────────────────────────────────────────────────────
 
 def validate_settings(settings: dict) -> dict:
-    required = ["pairs"]  # Zen Scalp v1.2: pair_sl_tp fixed pips used exclusively
+    required = ["pairs"]  # Zen Scalp v1.3: pair_sl_tp fixed pips used exclusively
     missing  = [k for k in required if k not in settings]
     if missing:
         raise ValueError(f"Missing required settings keys: {missing}")
@@ -537,7 +537,7 @@ def compute_tp_usd(levels: dict, sl_usd: float, settings: dict) -> float:
             if v > 0: return v
         except (TypeError, ValueError):
             pass
-    return round(sl_usd * 1.67, 8)  # 1.67x RR emergency fallback
+    return round(sl_usd * 1.5, 8)   # 1.5x RR emergency fallback
 
 
 def derive_rr_ratio(levels: dict, sl_usd: float, tp_usd: float, settings: dict) -> float:

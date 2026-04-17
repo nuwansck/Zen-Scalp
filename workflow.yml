@@ -13,7 +13,7 @@
 #
 # Current live deployment: Railway  →  python scheduler.py
 
-name: Cable Scalp (DISABLED — Railway is live deployment)
+name: Zen Scalp (DISABLED — Railway is live deployment)
 
 on:
   workflow_dispatch:   # manual trigger only; schedule lines removed to prevent accidental runs

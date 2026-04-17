@@ -1,5 +1,5 @@
 """
-analyze_trades.py — RF Scalp Bot Performance Dashboard
+analyze_trades.py — Zen Scalp Bot Performance Dashboard
 Run from the same folder as trade_history.json:
 
     python analyze_trades.py              # all FILLED trades

@@ -4,7 +4,7 @@
 
 ## v1.0.0 — 2026-04-17
 
-Initial release of **Zen Scalp v1.2** — EUR/GBP + AUD/USD M15 mean reversion bot.
+Initial release of **Zen Scalp v1.3** — EUR/GBP + AUD/USD M15 mean reversion bot.
 Built from Cable Scalp v1.5 infrastructure. Signal engine completely rewritten.
 
 ### Strategy — Bollinger Band + RSI Mean Reversion
@@ -58,7 +58,7 @@ Full parity with Cable Scalp v1.5:
 
 ### Key differences from Cable Scalp v1.5
 
-| | Cable Scalp v1.5 | Zen Scalp v1.2 |
+| | Cable Scalp v1.5 | Zen Scalp v1.3 |
 |---|---|---|
 | Signal | EMA + ORB momentum | BB + RSI mean reversion |
 | Pairs | GBP/USD | EUR/GBP + AUD/USD |
