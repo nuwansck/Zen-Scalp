@@ -1,6 +1,6 @@
-# Zen Scalp v1.3 — Technical Specification
+# Zen Scalp v1.4 — Technical Specification
 
-**Bot:** Zen Scalp v1.3  **Pairs:** EUR/GBP + AUD/USD  **Exchange:** OANDA (demo)
+**Bot:** Zen Scalp v1.4  **Pairs:** EUR/GBP + AUD/USD  **Exchange:** OANDA (demo)
 **Platform:** Railway (Singapore)  **Timeframe:** M15  **Cycle:** 5 min
 
 ---
@@ -47,7 +47,7 @@ TP = middle band (SMA20). SL = just outside outer band.
 | Session | SGT | Threshold | Cap | Notes |
 |---|---|---|---|---|
 | Dead zone | 04:00–07:59 | — | — | No entries |
-| Asian | 08:00–15:59 | ≥ 4/6 | 6 | PRIMARY |
+| Asian | 08:00–15:59 | ≥ 4/6 | **6** | PRIMARY |
 | London | 16:00–20:59 | ≥ 4/6 | 6 | Secondary |
 | US | 21:00–23:59 | 99 (disabled) | — | Trending hours |
 | US cont | 00:00–03:59 | 99 (disabled) | — | Trending hours |
@@ -93,4 +93,5 @@ Ranges well 08:00–15:59 SGT before London trending begins. Spread ~1–2p.
 | v1.0 | Apr 17 2026 | Initial release — EUR/GBP + AUD/USD, BB+RSI signal engine |
 | v1.1 | Apr 17 2026 | Fixed healthcheck crash (wrong import). Combined session card. BB+RSI text. |
 | v1.2 | Apr 17 2026 | SL/TP injection fix (was 18p → now 20p). EUR/GBP pip_value 11.0. AUD_USD defaults added. Remove (Zen) label. |
-| **v1.3** | **Apr 17 2026** | **Full codebase cleanup — all RF Scalp/Cable Scalp stale refs removed. Clean README/CONFLUENCE.** |
+| v1.3 | Apr 17 2026 | Full codebase cleanup — all stale refs removed. Clean docs. |
+| **v1.4** | **Apr 17 2026** | **max_trades_tokyo set to 6 — matches London cap. Tokyo cap corrected on startup card.** |

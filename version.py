@@ -1,2 +1,2 @@
-VERSION     = "1.3.0"
-DESCRIPTION = "Zen Scalp v1.3 — Full codebase cleanup, all stale refs removed, clean docs"
+VERSION     = "1.4.0"
+DESCRIPTION = "Zen Scalp v1.4 — max_trades_tokyo corrected to 6, matches London cap"

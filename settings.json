@@ -1,5 +1,5 @@
 {
-  "bot_name": "Zen Scalp v1.3",
+  "bot_name": "Zen Scalp v1.4",
   "demo_mode": true,
   "enabled": true,
   "_comment_pairs": "Per-pair settings override any matching global key for that pair's cycle.",
@@ -99,7 +99,7 @@
   "monthly_report_minute_sgt": 0,
   "tokyo_session_start_hour": 8,
   "tokyo_session_end_hour": 15,
-  "max_trades_tokyo": 10,
+  "max_trades_tokyo": 6,
   "max_total_open_trades": 2,
   "tp2_rr_reference": 3.0,
   "pair_sl_tp": {

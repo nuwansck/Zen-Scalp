@@ -1,4 +1,4 @@
-# Zen Scalp v1.3 — Settings Reference
+# Zen Scalp v1.4 — Settings Reference
 
 ---
 
@@ -6,7 +6,7 @@
 
 | Key | Value |
 |---|---|
-| `bot_name` | `"Zen Scalp v1.3"` |
+| `bot_name` | `"Zen Scalp v1.4"` |
 | `demo_mode` | `true` |
 
 ---
@@ -84,7 +84,8 @@ RR: 1.5× · Break-even WR: 40%
 |---|---|
 | `max_losing_trades_day` | `6` |
 | `max_losing_trades_session` | `3` |
-| `max_trades_london` | `6` |
+| `max_trades_tokyo` | `6` | Asian (primary) session cap |
+| `max_trades_london` | `6` | London (secondary) session cap |
 | `max_spread_pips` | `3` |
 | `loss_streak_cooldown_min` | `30` |
 | `breakeven_enabled` | `false` |

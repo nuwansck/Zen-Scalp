@@ -1,4 +1,4 @@
-"""Main orchestrator for Zen Scalp v1.3 — EUR/GBP + AUD/USD M5 Scalper
+"""Main orchestrator for Zen Scalp v1.4 — EUR/GBP + AUD/USD M5 Scalper
 
 Dedicated EUR/GBP + AUD/USD (Zen) scalping bot. Single pair, clean data, focused strategy.
 
@@ -132,7 +132,7 @@ def _pip_size(settings: dict) -> float:
 def _pip_dp(pip: float) -> int:
     """Decimal places for price rounding given pip size."""
     if pip <= 0.0001: return 5   # EUR_GBP (Zen)
-    if pip <= 0.01:   return 3   # JPY pairs (not used in Zen Scalp v1.3)
+    if pip <= 0.01:   return 3   # JPY pairs (not used in Zen Scalp v1.4)
     return 2
 
 
@@ -194,7 +194,7 @@ def _signal_payload(**kwargs):
 # ── Settings ──────────────────────────────────────────────────────────────────
 
 def validate_settings(settings: dict) -> dict:
-    required = ["pairs"]  # Zen Scalp v1.3: pair_sl_tp fixed pips used exclusively
+    required = ["pairs"]  # Zen Scalp v1.4: pair_sl_tp fixed pips used exclusively
     missing  = [k for k in required if k not in settings]
     if missing:
         raise ValueError(f"Missing required settings keys: {missing}")
@@ -257,7 +257,7 @@ def validate_settings(settings: dict) -> dict:
     # Tokyo/Asian session
     settings.setdefault("tokyo_session_start_hour",    8)
     settings.setdefault("tokyo_session_end_hour",     15)
-    settings.setdefault("max_trades_tokyo",           10)
+    settings.setdefault("max_trades_tokyo",            6)  # Asian primary — same cap as London
     # global concurrent-trade cap (0 = per-pair limits only)
     settings.setdefault("max_total_open_trades",       2)
     # TP2 reference RR multiplier for the trade opened Telegram alert
@@ -357,7 +357,7 @@ def get_window_key(session_name: str | None) -> str | None:
 def get_window_trade_cap(window_key: str | None, settings: dict) -> int | None:
     if window_key == "London": return int(settings.get("max_trades_london", 10))
     if window_key == "US":     return int(settings.get("max_trades_us",     10))
-    if window_key == "Tokyo":  return int(settings.get("max_trades_tokyo",  10))
+    if window_key == "Tokyo":  return int(settings.get("max_trades_tokyo",   6))
     return None
 
 

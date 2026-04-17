@@ -4,7 +4,7 @@
 
 ## v1.0.0 — 2026-04-17
 
-Initial release of **Zen Scalp v1.3** — EUR/GBP + AUD/USD M15 mean reversion bot.
+Initial release of **Zen Scalp v1.4** — EUR/GBP + AUD/USD M15 mean reversion bot.
 Built from Cable Scalp v1.5 infrastructure. Signal engine completely rewritten.
 
 ### Strategy — Bollinger Band + RSI Mean Reversion
@@ -58,7 +58,7 @@ Full parity with Cable Scalp v1.5:
 
 ### Key differences from Cable Scalp v1.5
 
-| | Cable Scalp v1.5 | Zen Scalp v1.3 |
+| | Cable Scalp v1.5 | Zen Scalp v1.4 |
 |---|---|---|
 | Signal | EMA + ORB momentum | BB + RSI mean reversion |
 | Pairs | GBP/USD | EUR/GBP + AUD/USD |
@@ -142,3 +142,22 @@ Scanning for BB + RSI setups...
 the "(Zen)" suffix redundant given the bot name already says Zen Scalp.
 
 **Fix:** Pair line now shows `EUR/GBP + AUD/USD`
+
+---
+
+## v1.4.0 — 2026-04-17
+
+### Fix — max_trades_tokyo corrected to 6
+
+**Problem:** `max_trades_tokyo` was not set in settings.json, so it fell back to
+the default of 10. Startup card showed `Tokyo cap 10` while London showed `cap 6`.
+Inconsistent — Asian is the PRIMARY session and should have the same cap.
+
+**Fix:** `max_trades_tokyo: 6` added to settings.json, bot.py defaults,
+and SETTINGS.md documentation.
+
+Startup card now shows:
+```
+🗼 08:00–15:59  Tokyo      cap 6  score≥4
+🇬🇧 16:00–20:59  London     cap 6  score≥4
+```

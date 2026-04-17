@@ -1,5 +1,5 @@
 """
-Telegram Alert System — Zen Scalp v1.3
+Telegram Alert System — Zen Scalp v1.4
 
 Retries up to 3 times on 5xx errors with exponential backoff.
 HTTP 429 (rate-limit) respects the Retry-After header.
