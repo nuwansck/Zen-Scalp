@@ -306,13 +306,39 @@ class OandaTrader:
             log.warning("get_trade_pnl error: %s", e)
             return None
 
-    def modify_sl(self, trade_id: str, new_sl_price: float) -> dict:
+    def modify_sl(self, trade_id: str, new_sl_price: float, instrument: str | None = None) -> dict:
+        """Modify an open trade's stop-loss price.
+
+        v1.5 fix: price must be formatted using the instrument's displayPrecision
+        (5 for EUR_GBP/AUD_USD, 2 for gold, 3 for JPY pairs). The previous
+        hard-coded :.2f truncated forex prices like 0.72070 to "0.72", which
+        OANDA rejects as PRECISION_EXCEEDED or an invalid price.
+
+        If instrument is provided we look up its displayPrecision via the
+        cached instrument specs; otherwise we infer from the trade itself.
+        """
         try:
-            payload = {"stopLoss": {"price": f"{new_sl_price:.2f}", "timeInForce": "GTC"}}
+            if instrument is None:
+                # Fall back: fetch the trade to learn its instrument
+                try:
+                    tr = self.get_open_trade(trade_id)
+                    if tr and tr.get("instrument"):
+                        instrument = tr["instrument"]
+                except Exception:
+                    instrument = None
+
+            display_precision = 5  # sensible default for forex
+            if instrument:
+                specs = self.get_instrument_specs(instrument)
+                display_precision = int(specs.get("displayPrecision", 5))
+
+            price_str = f"{new_sl_price:.{display_precision}f}"
+            payload = {"stopLoss": {"price": price_str, "timeInForce": "GTC"}}
             r = self._request("PUT", f"/v3/accounts/{self.account_id}/trades/{trade_id}/orders", json=payload, timeout=15)
             data = r.json()
             if r.status_code in [200, 201]:
-                log.info("SL moved to %.2f for trade %s", new_sl_price, trade_id)
+                log.info("SL moved to %s for trade %s (instrument=%s dp=%d)",
+                         price_str, trade_id, instrument or "?", display_precision)
                 return {"success": True}
             log.warning("modify_sl failed: %s %s", r.status_code, str(data)[:200])
             return {"success": False, "error": data.get("errorMessage", str(data))}

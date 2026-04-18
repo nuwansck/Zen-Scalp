@@ -26,12 +26,16 @@
 
 ## SL / TP
 
-| Pair | sl_pips | tp_pips | pip_value_usd | be_trigger_pips |
-|---|---|---|---|---|
-| EUR/GBP | 20 | 30 | 11.0 (GBP-quoted) | 22 |
-| AUD/USD | 20 | 30 | 10.0 (USD-quoted) | 22 |
+| Pair | sl_pips | tp_pips | pip_value_usd | be_trigger_pips | be_lock_pips |
+|---|---|---|---|---|---|
+| EUR/GBP | 20 | 30 | 11.0 (GBP-quoted) | 15 | 3 |
+| AUD/USD | 20 | 30 | 10.0 (USD-quoted) | 15 | 3 |
 
 RR: 1.5× · Break-even WR: 40%
+
+Break-even (v1.5): when MFE reaches `be_trigger_pips` (+15), SL is moved past
+entry by `be_lock_pips` (+3) in the trade's favor. Locks ~2 pips net after
+typical 1p spread. Set `be_lock_pips: 0` for classic "SL to entry" behaviour.
 
 ---
 
@@ -88,5 +92,7 @@ RR: 1.5× · Break-even WR: 40%
 | `max_trades_london` | `6` | London (secondary) session cap |
 | `max_spread_pips` | `3` |
 | `loss_streak_cooldown_min` | `30` |
-| `breakeven_enabled` | `false` |
+| `breakeven_enabled` | `true` | v1.5 — was false in v1.4 |
+| `be_trigger_pips` | `15` | MFE required to fire BE (global; pair override available) |
+| `be_lock_pips` | `3` | v1.5 — pips past entry to lock when BE fires (0 = classic BE) |
 | `h1_filter_mode` | `"soft"` |

@@ -208,6 +208,10 @@ def validate_settings(settings: dict) -> dict:
     settings.setdefault("pip_size",                   0.0001)
     # be_trigger_pips: break-even trigger in pips
     settings.setdefault("be_trigger_pips",             20)
+    # be_lock_pips (v1.5): pips of profit to lock when BE fires.
+    # 0 = exit at entry price (classic BE, net slightly negative after spread).
+    # 3 = move SL past entry by 3 pips in trade's favor (~2p net after typical 1p spread).
+    settings.setdefault("be_lock_pips",                0)
     settings.setdefault("trading_day_start_hour_sgt", 8)
     settings.setdefault("max_losing_trades_session",  4)
     settings.setdefault("exhaustion_atr_mult",        3.0)
@@ -266,8 +270,8 @@ def validate_settings(settings: dict) -> dict:
     settings.setdefault("min_trade_units",           1000)
     # EUR/GBP + AUD/USD only
     settings.setdefault("pair_sl_tp", {
-        "EUR_GBP": {"sl_pips": 20, "tp_pips": 30, "pip_value_usd": 11.0, "be_trigger_pips": 22},
-        "AUD_USD": {"sl_pips": 20, "tp_pips": 30, "pip_value_usd": 10.0, "be_trigger_pips": 22},
+        "EUR_GBP": {"sl_pips": 20, "tp_pips": 30, "pip_value_usd": 11.0, "be_trigger_pips": 22, "be_lock_pips": 3},
+        "AUD_USD": {"sl_pips": 20, "tp_pips": 30, "pip_value_usd": 10.0, "be_trigger_pips": 22, "be_lock_pips": 3},
     })
     # dead zone = pre-Tokyo gap 04:00–07:59 SGT (overrides any stale setdefault above)
     settings["dead_zone_start_hour"] = int(settings.get("dead_zone_start_hour", 4))
@@ -665,12 +669,18 @@ def send_once_per_state(alert, cache: dict, key: str, value: str,
 # ── Break-even management ──────────────────────────────────────────────────────
 
 def check_breakeven(history: list, trader, alert, settings: dict, instrument: str):
-    """Move SL to break-even when trade profit reaches be_trigger_pips.
+    """Move SL to break-even (± lock pips) when trade profit reaches be_trigger_pips.
 
-    v1.0: trigger derived from per-pair be_trigger_pips (a pip count) converted
-    to a price distance using pip_size.  Replaces the old breakeven_trigger_usd
-    which was a quote-currency price offset — correct for USD pairs but almost
-    zero for JPY pairs (0.002 yen ≈ 0.2 pips), making breakeven fire at entry.
+    v1.5: adds `be_lock_pips` — instead of moving SL to exactly entry price,
+    move it past entry by `be_lock_pips` in the trade's favor. This locks in
+    a small profit (typically enough to cover spread + a couple of pips)
+    instead of exiting at net zero / net negative after spread.
+
+    Resolution order for both values:   pair_sl_tp[PAIR] → global → default.
+
+    Direction math for the new SL:
+        BUY :  new_sl = entry + lock_dist      (SL above entry = locked long)
+        SELL:  new_sl = entry - lock_dist      (SL below entry = locked short)
     """
     demo   = settings.get("demo_mode", True)
     _ps    = _pip_size(settings)                          # pip size for this pair
@@ -681,7 +691,10 @@ def check_breakeven(history: list, trader, alert, settings: dict, instrument: st
     _pair_cfg    = _pair_sl_tp.get(instrument, {})
     _be_pips     = int(_pair_cfg.get("be_trigger_pips",
                        settings.get("be_trigger_pips", 20)))
-    trigger_dist = _be_pips * _ps                         # price distance in quote ccy
+    _lock_pips   = int(_pair_cfg.get("be_lock_pips",
+                       settings.get("be_lock_pips", 0)))
+    trigger_dist = _be_pips   * _ps                       # price distance in quote ccy
+    lock_dist    = _lock_pips * _ps                       # how far past entry to lock
 
     changed = False
 
@@ -710,21 +723,29 @@ def check_breakeven(history: list, trader, alert, settings: dict, instrument: st
         )
         if not triggered: continue
 
-        result = trader.modify_sl(str(trade_id), float(entry))
+        # v1.5: compute lock-adjusted SL instead of exactly entry
+        new_sl_price = (entry + lock_dist if direction == "BUY"
+                        else entry - lock_dist)
+
+        result = trader.modify_sl(str(trade_id), float(new_sl_price), instrument=instrument)
         if result.get("success"):
             trade["breakeven_moved"] = True
+            trade["be_locked_pips"]  = _lock_pips   # audit trail for reporting
             changed = True
             try:
                 unrealized_pnl = float(open_trade.get("unrealizedPL", 0))
             except Exception:
                 unrealized_pnl = 0
-            log.info("Break-even moved | %s trade=%s entry=%.5f trigger=%.5f (+%dp)",
-                     instrument, trade_id, entry, trigger_price, _be_pips)
+            log.info("Break-even moved | %s trade=%s entry=%.*f new_sl=%.*f lock=+%dp (trigger=%.*f, +%dp)",
+                     instrument, trade_id,
+                     _dp, entry, _dp, new_sl_price, _lock_pips,
+                     _dp, trigger_price, _be_pips)
             alert.send(msg_breakeven(
                 trade_id=trade_id, direction=direction, entry=entry,
                 trigger_price=trigger_price, trigger_dist=trigger_dist,
                 current_price=current_price, unrealized_pnl=unrealized_pnl,
                 demo=demo, price_dp=_dp,
+                new_sl_price=new_sl_price, lock_pips=_lock_pips,
             ))
         else:
             log.warning("Break-even failed for %s trade %s: %s",

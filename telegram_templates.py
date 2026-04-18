@@ -173,12 +173,24 @@ def msg_trade_opened(
 # ── 3. Breakeven ──────────────────────────────────────────────────────────────
 
 def msg_breakeven(trade_id, direction, entry, trigger_price, trigger_dist,
-                  current_price, unrealized_pnl, demo, price_dp=5) -> str:
+                  current_price, unrealized_pnl, demo, price_dp=5,
+                  new_sl_price=None, lock_pips=0) -> str:
+    """Break-even activation alert.
+
+    v1.5: shows the lock amount when be_lock_pips > 0. If lock_pips is 0 or
+    new_sl_price is not supplied, falls back to the classic "SL moved to
+    entry" message.
+    """
     mode = "DEMO" if demo else "LIVE"
+    if new_sl_price is not None and lock_pips and lock_pips > 0:
+        sl_line = (f"Entry:   {entry:.{price_dp}f}  →  SL: {new_sl_price:.{price_dp}f} "
+                   f"(+{lock_pips}p locked)")
+    else:
+        sl_line = f"Entry:   {entry:.{price_dp}f}  →  SL moved to entry"
     return (
         f"🔒 Break-Even Activated\n{_DIV}\n"
         f"{direction}  Trade #{trade_id}\n"
-        f"Entry:   {entry:.{price_dp}f}  →  SL moved to entry\n"
+        f"{sl_line}\n"
         f"Trigger: {trigger_price:.{price_dp}f}  (now: {current_price:.{price_dp}f})\n"
         f"PnL now: ${unrealized_pnl:+.2f}  |  Mode: {mode}"
     )

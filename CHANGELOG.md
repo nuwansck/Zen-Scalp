@@ -2,6 +2,92 @@
 
 ---
 
+## v1.5.0 — 2026-04-18
+
+**Break-even activation with configurable profit-lock.**
+
+### Why
+v1.4 ran with `breakeven_enabled: false`. First live-demo data (AUD/USD + EUR/GBP
+on Apr 18) showed both trades peaking in the +8–16 pip zone before approaching
+TP30. BB reversion setups statistically stall around the middle band (~15–20 pips
+from a BB extreme entry), so a 30-pip TP leaves winners exposed to full reversal
+if they hit the target zone without follow-through. BE protects this exact
+failure mode without capping the occasional runner that reaches TP30.
+
+### Changes
+
+**`oanda_trader.py` — 🔴 Bug fix: `modify_sl` price precision**
+- **Before:** SL price formatted with hard-coded `f"{price:.2f}"`, truncating
+  forex prices like `0.72070` to `"0.72"`. OANDA rejects these as invalid,
+  so every breakeven attempt would have silently failed with a `log.warning`.
+- **After:** Looks up `displayPrecision` from the instrument spec cache
+  (5 for EUR_GBP / AUD_USD, 2 for gold, 3 for JPY). Accepts optional
+  `instrument` arg to skip the lookup round-trip. Falls back to `get_open_trade`
+  when instrument not supplied. Matches the precision handling already used
+  in `place_order`.
+- Dormant in v1.4 because BE was disabled — would have fired on first BE
+  activation. Caught during pre-flight review.
+
+**`bot.py` — `check_breakeven()` rewrite**
+- New setting: `be_lock_pips` (pair-override aware, same resolution order as
+  `be_trigger_pips`: pair → global → default 0).
+- Instead of moving SL to exactly the entry price (net ~0 before spread,
+  net slightly negative after), move it past entry by `be_lock_pips` in the
+  trade's favor:
+  - `BUY:  new_sl = entry + lock_dist`   (SL above entry = locked long profit)
+  - `SELL: new_sl = entry - lock_dist`   (SL below entry = locked short profit)
+- Passes `instrument=` through to `modify_sl` so the price is formatted at
+  the correct precision.
+- Records `be_locked_pips` on the trade for later analysis.
+- Log line now prints the actual new SL price and lock amount for audit.
+
+**`telegram_templates.py` — `msg_breakeven()`**
+- When `lock_pips > 0`: shows new SL price and "+Xp locked" badge.
+- When `lock_pips == 0`: preserves the classic "SL moved to entry" wording.
+- Backward-compatible signature (new kwargs default to `None`/`0`).
+
+**`settings.json` — activation**
+```diff
+- "breakeven_enabled": false,
++ "breakeven_enabled": true,
++ "be_trigger_pips": 15,
++ "be_lock_pips": 3,
+```
+Per-pair (`pair_sl_tp`) block also updated: `be_trigger_pips 22 → 15`,
+`be_lock_pips: 3` added for both EUR_GBP and AUD_USD. Stale duplicate
+`be_trigger_pips: 20` key further down the file was removed.
+
+### Behaviour matrix (AUD/USD SELL @ 0.72070, SL @ 0.72270, TP @ 0.71770)
+
+| Price path                | v1.4 outcome      | v1.5 outcome                  |
+|---------------------------|-------------------|-------------------------------|
+| Straight to TP            | +30p / +$60       | +30p / +$60 (unchanged)       |
+| +17 pips, reverse to SL   | −20p / −$40       | +3p locked / +$6 (saved $46)  |
+| +5 pips, reverse to SL    | −20p / −$40       | −20p / −$40 (BE never fired)  |
+| Pulls back to BE then TP  | +30p / +$60       | +3p locked / +$6 (trade-off)  |
+
+The bottom row is the only v1.5 regression. Apr 28 review will quantify how
+often this happens vs. rows 2 and 3 to confirm net-positive expectancy.
+
+### Data collection for Apr 28 review
+
+Already wired in v1.4 and unchanged in v1.5:
+- `max_pips_reached` per trade (MFE) — tracked every cycle in `track_max_pips`
+- Shown in `msg_trade_closed` as `Peak: +X.X pips reached`
+
+New in v1.5:
+- `breakeven_moved: True/False` on each trade in history
+- `be_locked_pips` value recorded for audit
+
+Review metrics:
+1. BE trigger hit rate (% of filled trades that reached +15 MFE)
+2. Post-BE split: reached TP30 vs. pulled back to BE+3 vs. still open
+3. MFE distribution of BE-out trades — tight cluster near +15–17 confirms lock
+   is right-sized; scattered to +25+ suggests trigger should move later
+4. Counterfactual: for each BE-out, would the original −20 SL have hit?
+
+---
+
 ## v1.0.0 — 2026-04-17
 
 Initial release of **Zen Scalp v1.4** — EUR/GBP + AUD/USD M15 mean reversion bot.

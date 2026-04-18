@@ -31,7 +31,9 @@
   "signal_threshold": 4,
   "position_full_usd": 60,
   "position_partial_usd": 45,
-  "breakeven_enabled": false,
+  "breakeven_enabled": true,
+  "be_trigger_pips": 15,
+  "be_lock_pips": 3,
   "margin_safety_factor": 0.6,
   "margin_retry_safety_factor": 0.4,
   "margin_rate_override": 0.0,
@@ -107,13 +109,15 @@
       "sl_pips": 20,
       "tp_pips": 30,
       "pip_value_usd": 11.0,
-      "be_trigger_pips": 22
+      "be_trigger_pips": 15,
+      "be_lock_pips": 3
     },
     "AUD_USD": {
       "sl_pips": 20,
       "tp_pips": 30,
       "pip_value_usd": 10.0,
-      "be_trigger_pips": 22
+      "be_trigger_pips": 15,
+      "be_lock_pips": 3
     }
   },
   "min_trade_units": 1000,
@@ -121,7 +125,6 @@
   "h1_filter_enabled": true,
   "h1_filter_mode": "soft",
   "h1_ema_period": 21,
-  "be_trigger_pips": 20,
   "bb_period": 20,
   "bb_std_dev": 2.0,
   "rsi_period": 14,

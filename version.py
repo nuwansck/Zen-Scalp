@@ -1,2 +1,2 @@
-VERSION     = "1.4.0"
-DESCRIPTION = "Zen Scalp v1.4 — max_trades_tokyo corrected to 6, matches London cap"
+VERSION     = "1.5.0"
+DESCRIPTION = "Zen Scalp v1.5 — Break-even enabled with configurable lock pips (trigger +15, lock +3); modify_sl precision bug fixed"
