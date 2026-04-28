@@ -2,6 +2,126 @@
 
 ---
 
+## v1.6.1 — 2026-04-28
+
+**Weekend gap-risk protection.** Force-close all open positions every Friday
+from 22:00 SGT to eliminate exposure to weekend gaps when the forex market
+reopens Sunday. No strategy parameter changes from v1.6.
+
+### Why
+
+Forex closes Friday late-NY, reopens Sunday late-NY (8pm Mon SGT). Major
+news events over the weekend can cause Monday-open prices to gap 30–60 pips
+past existing SL levels with significant slippage. A single bad weekend
+gap can erase weeks of strategy gains.
+
+Previously, `friday_cutoff_hour_sgt: 23` blocked NEW entries after Friday
+23:00 SGT, but did NOT close EXISTING positions. The 61.3-hour EUR/GBP
+TP30 win on Apr 17–20 (+$115) survived a weekend by luck — the same setup
+in a USD-news weekend could have been a −$200 loss instead.
+
+This release adds a deliberate, configurable safety guard.
+
+### Changes
+
+**`bot.py` — new `is_weekend_close_time()` helper**
+
+Distinct from `is_friday_cutoff` (which only blocks entries). Returns True
+when:
+- weekday is Friday AND
+- current time ≥ `weekend_close_hour_sgt:weekend_close_minute_sgt` AND
+- `weekend_close_enabled: true`
+
+**`bot.py` — new `force_close_for_weekend()` management function**
+
+Runs every cycle when `is_weekend_close_time()` is True. For each open
+trade on the current pair:
+1. Verifies the trade is still open at OANDA (`get_open_trade(trade_id)`)
+2. Captures current bid/ask price + pips moved + unrealized P&L for alert
+3. Calls `trader.close_position(instrument)` (PUT to OANDA close API)
+4. Sends 🌙 weekend-close Telegram alert
+5. On failure, logs warning and lets the next cycle retry — idempotent
+
+P&L reconciliation is left to the existing `backfill_pnl` flow on the
+following cycle (no special path needed — closed trades just disappear
+from `get_open_trade()` results).
+
+**`telegram_templates.py` — new `msg_weekend_close()`**
+
+Distinct visual identity (🌙 emoji) so weekend closes are clearly
+attributable in chat history during data review. Shows entry, close
+price, pips, P&L, and the Friday cutoff time used.
+
+**`bot.py` cycle integration** — hooked between `check_breakeven` and
+`track_max_pips`:
+```python
+if settings.get("breakeven_enabled", False):
+    check_breakeven(history, trader, alert, settings, instrument)
+
+# v1.6.1: weekend gap-risk protection
+if is_weekend_close_time(now_sgt, settings):
+    force_close_for_weekend(history, trader, alert, settings, instrument, now_sgt)
+
+if track_max_pips(history, trader, settings, instrument):
+    save_history(history)
+```
+
+Order matters: BE check fires first so any in-flight BE move completes,
+then weekend close acts on whatever remains. `track_max_pips` runs last
+to record the final MFE before close.
+
+**Settings additions:**
+
+```diff
++ "weekend_close_enabled": true,
++ "weekend_close_hour_sgt": 22,
++ "weekend_close_minute_sgt": 0,
+```
+
+Defaults are conservative: 22:00 SGT (1-hour buffer before forex thins
+out into Friday close at NY 5pm = SGT 23:00). Disable globally by
+setting `weekend_close_enabled: false`.
+
+### What didn't change
+
+- **TP30, SL20, BE+15 lock+3** — same as v1.5/v1.6 (strategy review
+  remains scheduled for May 9 at the 30-trade milestone).
+- **`friday_cutoff_hour_sgt: 23`** — entry cutoff unchanged. New code
+  acts independently.
+- **All other parameters** — no strategy tuning in this release.
+
+### Tests
+
+End-to-end smoke test covering all time-boundary cases:
+
+| Case | Result |
+|---|---|
+| Fri 21:59 — before cutoff | False ✓ |
+| Fri 22:00 — exact cutoff | True ✓ |
+| Fri 22:30 — after cutoff | True ✓ |
+| Fri 23:00 — late Friday | True ✓ |
+| Sat 08:00 — already weekend | False ✓ |
+| Thu 22:00 — wrong day | False ✓ |
+| Mon 22:00 — wrong day | False ✓ |
+| Disabled flag respected | True ✓ |
+| `is_friday_cutoff` still independent | True ✓ |
+
+Telegram template renders correctly for both BUY/SELL directions and both
+positive/negative P&L. All Python files compile clean. JSON valid.
+
+### What to expect Friday May 1, 22:00 SGT
+
+If trades 208 (EUR/GBP) or 214 (AUD/USD) remain open at that time:
+1. Cycle fires at 22:00:xx (next 5-min boundary after 22:00)
+2. Each open trade closed at market via `close_position()` (ALL units)
+3. 🌙 Weekend Close Telegram alert per trade
+4. Next cycle at 22:05 reconciles realized P&L through `backfill_pnl`
+5. Telegram trade-closed alert fires with final figures
+
+If no trades are open at 22:00 SGT, function exits cleanly with no action.
+
+---
+
 ## v1.6.0 — 2026-04-28
 
 **Maintenance release: bug fix, codebase cleanup, doc refresh.** No strategy

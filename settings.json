@@ -1,5 +1,5 @@
 {
-  "bot_name": "Zen Scalp v1.6",
+  "bot_name": "Zen Scalp v1.6.1",
   "demo_mode": true,
   "enabled": true,
   "_comment_pairs": "Per-pair settings override any matching global key for that pair's cycle.",
@@ -66,6 +66,9 @@
   "news_medium_penalty_score": -1,
   "friday_cutoff_hour_sgt": 23,
   "friday_cutoff_minute_sgt": 0,
+  "weekend_close_enabled": true,
+  "weekend_close_hour_sgt": 22,
+  "weekend_close_minute_sgt": 0,
   "account_balance_override": 0,
   "trading_day_start_hour_sgt": 8,
   "min_rr_ratio": 1.4,

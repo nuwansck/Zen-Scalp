@@ -1,4 +1,4 @@
-# Zen Scalp v1.6 — Settings Reference
+# Zen Scalp v1.6.1 — Settings Reference
 
 ---
 
@@ -6,7 +6,7 @@
 
 | Key | Value |
 |---|---|
-| `bot_name` | `"Zen Scalp v1.6"` |
+| `bot_name` | `"Zen Scalp v1.6.1"` |
 | `demo_mode` | `true` |
 
 ---
@@ -88,6 +88,9 @@ when both are set.
 | `us_session_end_hour` | `99` | Disabled |
 | `us_session_early_end_hour` | `99` | US continuation disabled |
 | `friday_cutoff_hour_sgt` | `23` | No new entries after Fri 23:00 |
+| `weekend_close_enabled` | `true` | v1.6.1 — force-close all open positions at cutoff |
+| `weekend_close_hour_sgt` | `22` | v1.6.1 — Friday cutoff hour for force-close |
+| `weekend_close_minute_sgt` | `0` | v1.6.1 — Friday cutoff minute for force-close |
 | `max_trades_tokyo` | `6` | |
 | `max_trades_london` | `6` | |
 

@@ -1,6 +1,6 @@
-# Zen Scalp v1.6 — Technical Specification
+# Zen Scalp v1.6.1 — Technical Specification
 
-**Bot:** Zen Scalp v1.6   **Pairs:** EUR/GBP + AUD/USD   **Exchange:** OANDA (demo)
+**Bot:** Zen Scalp v1.6.1   **Pairs:** EUR/GBP + AUD/USD   **Exchange:** OANDA (demo)
 **Platform:** Railway (Singapore)   **Timeframe:** M15   **Cycle:** 5 min
 
 ---
@@ -20,10 +20,11 @@ scheduler.py  (APScheduler — every 5 min)
 Per-cycle flow inside `run_bot_cycle`:
 
 ```
-1. guard      — market hours, dead-zone, weekly cutoff, news filter
-2. signal     — fetch M15 candles, compute BB/RSI/CPR, score 0–6
-3. manage     — track_max_pips (MFE), check_breakeven (BE+lock)
-4. execute    — if score ≥ threshold AND no open trade → place order
+1. guard       — market hours, dead-zone, weekly cutoff, news filter
+2. signal      — fetch M15 candles, compute BB/RSI/CPR, score 0–6
+3. manage      — track_max_pips (MFE), check_breakeven (BE+lock),
+                 force_close_for_weekend (Fri 22:00 SGT — v1.6.1+)
+4. execute     — if score ≥ threshold AND no open trade → place order
 ```
 
 ---
@@ -74,21 +75,43 @@ forex majors, 3 for JPY pairs, 2 for gold) — fixed in v1.5 from a hard-coded
 
 ---
 
-## 4. Session Schedule
+## 4. Weekend Gap Protection (v1.6.1+)
+
+Every Friday at `weekend_close_hour_sgt:weekend_close_minute_sgt` SGT
+(default **22:00**), `force_close_for_weekend()` iterates open positions
+on the current pair and closes each via OANDA's position-close API:
+
+```python
+PUT /v3/accounts/{account_id}/positions/{instrument}/close
+body: {"longUnits": "ALL", "shortUnits": "ALL"}
+```
+
+Acts independently of `is_friday_cutoff` (which only blocks new entries).
+Idempotent: closed trades disappear from `get_open_trade()` results, so
+subsequent cycles skip cleanly. P&L reconciliation flows through the
+normal `backfill_pnl` path on the next cycle. A 🌙 weekend-close Telegram
+alert fires per closed trade for chat-stream attribution.
+
+Disable by setting `weekend_close_enabled: false` in `settings.json`.
+
+---
+
+## 5. Session Schedule
 
 | Session | SGT | Threshold | Cap | Notes |
 |---|---|---|---|---|
 | Dead zone | 04:00–07:59 | — | — | No entries; BE/SL management still active |
 | Asian (Tokyo) | 08:00–15:59 | ≥ 4/6 | 6 | **PRIMARY** |
 | London | 16:00–20:59 | ≥ 4/6 | 6 | Secondary |
+| Weekend close | Fri 22:00+ | — | — | Force-close all open positions |
 | US | 21:00–23:59 | 99 (disabled) | — | Trending hours |
 | US continuation | 00:00–03:59 | 99 (disabled) | — | Trending hours |
 
-Trading day reset: 08:00 SGT. Loss cap: 6/day. Friday cutoff: 23:00 SGT.
+Trading day reset: 08:00 SGT. Loss cap: 6/day. Friday entry cutoff: 23:00 SGT.
 
 ---
 
-## 5. Position Sizing
+## 6. Position Sizing
 
 | Score | Position USD | Per pip (EUR/GBP) | Per pip (AUD/USD) |
 |---|---|---|---|
@@ -104,7 +127,7 @@ sizing when `safety_factor` exceeds free margin.
 
 ---
 
-## 6. Global Cap Explained
+## 7. Global Cap Explained
 
 ```
 max_total_open_trades: 2     ← global ceiling (sum across both pairs)
@@ -116,7 +139,7 @@ Blocked: 2 trades on the same pair simultaneously.
 
 ---
 
-## 7. Pair Characteristics
+## 8. Pair Characteristics
 
 **EUR/GBP** — Most range-bound major forex pair. EUR and GBP rarely diverge
 strongly. Typical daily range 35–55 pips. BB touches are reliable. Spread
@@ -128,7 +151,7 @@ well 08:00–15:59 SGT before London trending begins. Typical daily range
 
 ---
 
-## 8. Database & Persistence
+## 9. Database & Persistence
 
 ```
 DATA_DIR=/data           ← persistent volume on Railway
@@ -143,7 +166,7 @@ of `trade_history.json` to Telegram every Monday 08:20 SGT.
 
 ---
 
-## 9. Telegram Reports
+## 10. Telegram Reports
 
 | Type | Schedule | Content |
 |---|---|---|
@@ -155,7 +178,7 @@ of `trade_history.json` to Telegram every Monday 08:20 SGT.
 
 ---
 
-## 10. Version History
+## 11. Version History
 
 | Version | Date | Changes |
 |---|---|---|
@@ -165,4 +188,5 @@ of `trade_history.json` to Telegram every Monday 08:20 SGT.
 | v1.3 | 2026-04-17 | Full codebase cleanup. All stale refs removed. Clean docs. |
 | v1.4 | 2026-04-17 | `max_trades_tokyo` set to 6 — matches London cap. Tokyo cap fixed on startup card. |
 | v1.5 | 2026-04-18 | **BE enabled** with configurable `be_lock_pips`. Fixed `modify_sl` precision bug (`:.2f` → `displayPrecision`). |
-| **v1.6** | **2026-04-28** | **Maintenance:** weekly report `KeyError` fix. Removed 8 dead config keys (ORB/EMA/ATR carryovers). Fixed M5 → M15 timeframe label in DB. Fixed `us_session_early_end_hour` default 3 → 99. Removed disabled `workflow.yml`. Doc refresh. |
+| v1.6 | 2026-04-28 | Maintenance: weekly report `KeyError` fix. Removed 8 dead config keys (ORB/EMA/ATR carryovers). Fixed M5 → M15 timeframe label in DB. Fixed `us_session_early_end_hour` default 3 → 99. Removed disabled `workflow.yml`. Doc refresh. |
+| **v1.6.1** | **2026-04-28** | **Weekend gap-risk protection.** New `force_close_for_weekend()` runs every cycle on Friday from 22:00 SGT, force-closes all open positions via OANDA position-close API. Independent of `friday_cutoff` (which only blocks new entries). Configurable via `weekend_close_enabled/_hour_sgt/_minute_sgt`. New 🌙 Telegram alert template. No strategy changes. |

@@ -1,4 +1,4 @@
-"""Main orchestrator for Zen Scalp v1.6 — EUR/GBP + AUD/USD M15 BB+RSI Mean Reversion
+"""Main orchestrator for Zen Scalp v1.6.1 — EUR/GBP + AUD/USD M15 BB+RSI Mean Reversion
 
 Dedicated EUR/GBP + AUD/USD (Zen) scalping bot. Single pair, clean data, focused strategy.
 
@@ -46,6 +46,7 @@ from telegram_templates import (
     msg_signal_update, msg_trade_opened, msg_breakeven, msg_trade_closed,
     msg_news_block, msg_news_penalty, msg_cooldown_started, msg_daily_cap,
     msg_spread_skip, msg_order_failed, msg_error, msg_friday_cutoff,
+    msg_weekend_close,
     msg_margin_adjustment, msg_new_day_resume, msg_session_open,
     msg_session_open_multi,
 )
@@ -132,7 +133,7 @@ def _pip_size(settings: dict) -> float:
 def _pip_dp(pip: float) -> int:
     """Decimal places for price rounding given pip size."""
     if pip <= 0.0001: return 5   # EUR_GBP (Zen)
-    if pip <= 0.01:   return 3   # JPY pairs (not used in Zen Scalp v1.6)
+    if pip <= 0.01:   return 3   # JPY pairs (not used in Zen Scalp v1.6.1)
     return 2
 
 
@@ -194,7 +195,7 @@ def _signal_payload(**kwargs):
 # ── Settings ──────────────────────────────────────────────────────────────────
 
 def validate_settings(settings: dict) -> dict:
-    required = ["pairs"]  # Zen Scalp v1.6: pair_sl_tp fixed pips used exclusively
+    required = ["pairs"]  # Zen Scalp v1.6.1: pair_sl_tp fixed pips used exclusively
     missing  = [k for k in required if k not in settings]
     if missing:
         raise ValueError(f"Missing required settings keys: {missing}")
@@ -223,6 +224,12 @@ def validate_settings(settings: dict) -> dict:
     settings.setdefault("telegram_min_score_alert",   3)
     settings.setdefault("friday_cutoff_hour_sgt",     23)
     settings.setdefault("friday_cutoff_minute_sgt",   0)
+    # v1.6.1: weekend force-close — protects against gap risk over the weekend.
+    # By Fri weekend_close_hour:weekend_close_minute SGT, all open trades are
+    # closed at market regardless of P&L. This is risk management, not strategy.
+    settings.setdefault("weekend_close_enabled",      True)
+    settings.setdefault("weekend_close_hour_sgt",     22)
+    settings.setdefault("weekend_close_minute_sgt",   0)
     settings.setdefault("news_lookahead_min",         120)
     settings.setdefault("news_medium_penalty_score",  -1)
     settings.setdefault("loss_streak_cooldown_min",   30)
@@ -283,6 +290,22 @@ def is_friday_cutoff(now_sgt: datetime, settings: dict) -> bool:
         return False
     ch = int(settings.get("friday_cutoff_hour_sgt", 23))
     cm = int(settings.get("friday_cutoff_minute_sgt", 0))
+    return now_sgt.hour > ch or (now_sgt.hour == ch and now_sgt.minute >= cm)
+
+
+def is_weekend_close_time(now_sgt: datetime, settings: dict) -> bool:
+    """Return True when bot should force-close all open positions for the weekend.
+
+    Fires on Fridays from `weekend_close_hour_sgt:weekend_close_minute_sgt` SGT
+    onwards. Independent from `is_friday_cutoff` — the latter only blocks NEW
+    entries. This protects against weekend gap risk on EXISTING positions.
+    """
+    if not settings.get("weekend_close_enabled", True):
+        return False
+    if now_sgt.weekday() != 4:  # 4 = Friday
+        return False
+    ch = int(settings.get("weekend_close_hour_sgt", 22))
+    cm = int(settings.get("weekend_close_minute_sgt", 0))
     return now_sgt.hour > ch or (now_sgt.hour == ch and now_sgt.minute >= cm)
 
 
@@ -747,6 +770,93 @@ def check_breakeven(history: list, trader, alert, settings: dict, instrument: st
         save_history(history)
 
 
+# ── Weekend force-close (v1.6.1) ──────────────────────────────────────────────
+
+def force_close_for_weekend(history: list, trader, alert, settings: dict,
+                             instrument: str, now_sgt: datetime) -> bool:
+    """Force-close all open positions on the given instrument for weekend safety.
+
+    Triggered every cycle once `is_weekend_close_time` returns True. Closes
+    each open position via market order regardless of P&L, then sends a
+    weekend-close Telegram alert. Idempotent — once a trade is closed at
+    OANDA, subsequent cycles see no open position and skip cleanly.
+
+    P&L reconciliation is left to the normal `backfill_pnl` flow on the next
+    cycle, which finds the closed trade via OANDA's transaction stream and
+    fills `realized_pnl_usd` + `closed_at_sgt` on the history record.
+
+    Returns True if any close was attempted (used for logging/diagnostics).
+    """
+    _ps = _pip_size(settings)
+    _dp = _pip_dp(_ps)
+    demo = settings.get("demo_mode", True)
+    cutoff_h = int(settings.get("weekend_close_hour_sgt", 22))
+    cutoff_m = int(settings.get("weekend_close_minute_sgt", 0))
+
+    open_trades = [
+        t for t in history
+        if t.get("status") == "FILLED"
+        and t.get("instrument") == instrument
+        and t.get("realized_pnl_usd") is None
+    ]
+    if not open_trades:
+        return False
+
+    attempted = False
+    for trade in open_trades:
+        trade_id  = trade.get("trade_id")
+        direction = trade.get("direction", "")
+        entry     = trade.get("entry")
+        if not trade_id:
+            continue
+
+        # Verify trade is still open at OANDA before closing
+        oanda_trade = trader.get_open_trade(str(trade_id))
+        if oanda_trade is None:
+            continue  # already closed (TP/SL/BE) — nothing to do
+
+        # Capture floating P&L for the alert before closing
+        try:
+            unrealized_pnl = float(oanda_trade.get("unrealizedPL", 0))
+        except Exception:
+            unrealized_pnl = 0.0
+
+        try:
+            mid, bid, ask = trader.get_price(instrument)
+            current_price = (bid if direction == "BUY" else ask) if mid is not None else None
+        except Exception:
+            current_price = None
+
+        # Compute current pips for the alert
+        pips_now = None
+        if entry and current_price:
+            if direction == "BUY":
+                pips_now = round((current_price - entry) / _ps, 1)
+            elif direction == "SELL":
+                pips_now = round((entry - current_price) / _ps, 1)
+
+        attempted = True
+        log.info("Weekend close | %s trade=%s entry=%.*f current=%s pips=%s pnl=$%+.2f",
+                 instrument, trade_id, _dp, entry or 0,
+                 f"{current_price:.{_dp}f}" if current_price else "n/a",
+                 f"{pips_now:+.1f}" if pips_now is not None else "n/a",
+                 unrealized_pnl)
+
+        result = trader.close_position(instrument)
+        if result.get("success"):
+            alert.send(msg_weekend_close(
+                trade_id=trade_id, direction=direction, instrument=instrument,
+                entry=entry, close_price=current_price, pips=pips_now,
+                pnl=unrealized_pnl, cutoff_hour=cutoff_h, cutoff_minute=cutoff_m,
+                demo=demo, price_dp=_dp,
+            ))
+        else:
+            log.warning("Weekend close failed for %s trade %s: %s — will retry next cycle",
+                        instrument, trade_id, result.get("error"))
+
+    return attempted
+
+
 # ── Max pips tracker ────────────────────────────────────────────────────
 
 def track_max_pips(history: list, trader, settings: dict, instrument: str) -> bool:
@@ -1202,6 +1312,13 @@ def _guard_phase(db, run_id, settings, alert, history, now_sgt, today, demo,
     history[:] = backfill_pnl(history, trader, alert, settings, instrument)
     if settings.get("breakeven_enabled", False):
         check_breakeven(history, trader, alert, settings, instrument)
+
+    # v1.6.1: weekend gap-risk protection — force-close all open positions
+    # by Friday 22:00 SGT (configurable). Runs after BE check so any
+    # in-flight BE move completes first, then weekend close acts on whatever
+    # remains. Independent of `is_friday_cutoff` (which only blocks new entries).
+    if is_weekend_close_time(now_sgt, settings):
+        force_close_for_weekend(history, trader, alert, settings, instrument, now_sgt)
 
     # Track peak pip distance on every open trade
     if track_max_pips(history, trader, settings, instrument):

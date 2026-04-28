@@ -1,4 +1,4 @@
-"""Telegram message templates for Zen Scalp v1.6
+"""Telegram message templates for Zen Scalp v1.6.1
 AtomicFX-style: clean, state-change only, minimal noise.
 """
 from __future__ import annotations
@@ -36,7 +36,7 @@ def _split_banner(banner: str) -> tuple[str, str]:
     """Extract pair from banner.
     Handles both:
       '🇬🇧 LONDON [EUR/GBP + AUD/USD]'  → ('🇬🇧 LONDON [EUR/GBP + AUD/USD]', 'EUR/GBP + AUD/USD')
-      'Zen Scalp v1.6 | EUR/GBP + AUD/USD' → ('Zen Scalp v1.6', 'EUR/GBP + AUD/USD')
+      'Zen Scalp v1.6.1 | EUR/GBP + AUD/USD' → ('Zen Scalp v1.6.1', 'EUR/GBP + AUD/USD')
     """
     if "[" in banner and "]" in banner:
         pair = banner[banner.index("[")+1 : banner.index("]")]
@@ -409,6 +409,31 @@ def msg_friday_cutoff(cutoff_hour_sgt) -> str:
         f"📅 Friday Cutoff\n{_DIV}\n"
         f"After {cutoff_hour_sgt:02d}:00 SGT — no new entries\n"
         f"Resuming Monday 16:00 SGT"
+    )
+
+
+def msg_weekend_close(trade_id, direction, instrument, entry, close_price,
+                     pips, pnl, cutoff_hour, cutoff_minute, demo,
+                     price_dp=5) -> str:
+    """Force-close-for-weekend alert (v1.6.1).
+
+    Differentiates weekend-safety closes from BE/SL/TP exits in the chat
+    so user can attribute correctly during data review. Always fires before
+    the weekend, never during the trading week.
+    """
+    mode  = "DEMO" if demo else "LIVE"
+    pair  = instrument.replace("_", "/")
+    icon  = "🟢" if pnl >= 0 else "🔴"
+    pips_str  = f"{pips:+.1f}p" if pips is not None else "n/a"
+    close_str = f"{close_price:.{price_dp}f}" if close_price is not None else "n/a"
+    entry_str = f"{entry:.{price_dp}f}" if entry is not None else "n/a"
+    return (
+        f"🌙 Weekend Close — {pair}\n{_DIV}\n"
+        f"{direction}  Trade #{trade_id}\n"
+        f"Entry:   {entry_str}\n"
+        f"Close:   {close_str}  ({pips_str})\n"
+        f"PnL:     {icon} ${pnl:+.2f}  |  Mode: {mode}\n"
+        f"Reason:  Friday {cutoff_hour:02d}:{cutoff_minute:02d} SGT cutoff — gap-risk protection"
     )
 
 

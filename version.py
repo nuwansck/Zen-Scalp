@@ -1,2 +1,2 @@
-VERSION     = "1.6.0"
-DESCRIPTION = "Zen Scalp v1.6 — Maintenance: weekly report KeyError fix, dead code cleanup (8 keys + ORB path), us_session default fix, M5→M15 DB label, doc refresh; no strategy changes from v1.5"
+VERSION     = "1.6.1"
+DESCRIPTION = "Zen Scalp v1.6.1 — Weekend gap-risk protection: force-close all open positions Fri 22:00 SGT (configurable). Builds on v1.6 maintenance release."

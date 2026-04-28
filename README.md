@@ -45,6 +45,27 @@ Configurable via `be_trigger_pips` (global + per-pair) and `be_lock_pips`.
 
 ---
 
+## Weekend Gap Protection (v1.6.1+)
+
+Every Friday at **22:00 SGT**, the bot force-closes all open positions at
+market — regardless of P&L, regardless of BE protection. This eliminates
+weekend gap risk: forex markets close Friday and reopen Sunday, and major
+news over the weekend can cause Monday-open prices to gap dozens of pips
+past any pre-set SL with significant slippage.
+
+| | Without weekend close | With weekend close |
+|---|---|---|
+| Best case (no gap) | Trade continues, may reach TP | Trade closes near current price |
+| Worst case (gap) | SL fills with major slippage (e.g. −40p) | Trade already closed safely (e.g. +3p) |
+
+Configurable via `weekend_close_enabled`, `weekend_close_hour_sgt`,
+`weekend_close_minute_sgt`. Trade close uses OANDA's position-close API
+(market order, "ALL" units). A dedicated 🌙 Weekend Close Telegram alert is
+sent for each closed trade so you can attribute the close correctly during
+data review.
+
+---
+
 ## Why Zen Scalp is different from Cable / RF MP
 
 | | Cable / RF MP Scalp | Zen Scalp |
@@ -67,6 +88,7 @@ Configurable via `be_trigger_pips` (global + per-pair) and `be_lock_pips`.
 🗼 08:00–15:59  Asian           score ≥4  cap 6  ← PRIMARY
 🇬🇧 16:00–20:59  London          score ≥4  cap 6  ← SECONDARY
 🚫 21:00–00:59  US + US cont    DISABLED (trending hours)
+🌙 Fri 22:00 SGT  Weekend close   Force-closes ALL open positions (gap protection)
 ```
 
 Day reset: 08:00 SGT · Loss cap: 6/day · Global cap: 2 open trades (1 per pair).
