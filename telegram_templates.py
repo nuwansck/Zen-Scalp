@@ -1,4 +1,4 @@
-"""Telegram message templates for Zen Scalp v1.4
+"""Telegram message templates for Zen Scalp v1.6
 AtomicFX-style: clean, state-change only, minimal noise.
 """
 from __future__ import annotations
@@ -36,7 +36,7 @@ def _split_banner(banner: str) -> tuple[str, str]:
     """Extract pair from banner.
     Handles both:
       '🇬🇧 LONDON [EUR/GBP + AUD/USD]'  → ('🇬🇧 LONDON [EUR/GBP + AUD/USD]', 'EUR/GBP + AUD/USD')
-      'Zen Scalp v1.4 | EUR/GBP + AUD/USD' → ('Zen Scalp v1.4', 'EUR/GBP + AUD/USD')
+      'Zen Scalp v1.6 | EUR/GBP + AUD/USD' → ('Zen Scalp v1.6', 'EUR/GBP + AUD/USD')
     """
     if "[" in banner and "]" in banner:
         pair = banner[banner.index("[")+1 : banner.index("]")]
@@ -62,7 +62,7 @@ def msg_signal_update(
     detail_lines, news_penalty=0, raw_score=None, decision="WATCHING",
     reason="", mandatory_checks=None, quality_checks=None,
     execution_checks=None, cycle_minutes=5, signal_threshold=4,
-    setup="", orb_age_min=None, orb_formed=False,
+    setup="",
     h1_trend="UNKNOWN", h1_aligned=True, h1_filter_mode="soft",
 ) -> str:
     bot, pair = _split_banner(banner)
@@ -81,10 +81,6 @@ def msg_signal_update(
         return f"H1: {icon} {h1_trend}  ({align}){mode}\n"
 
     if decision == "WATCHING":
-        orb = ""
-        if orb_formed and orb_age_min is not None:
-            lbl = "fresh" if orb_age_min < 60 else ("aging" if orb_age_min < 120 else "stale")
-            orb = f"ORB: {orb_age_min}min ({lbl})  |  "
         return (
             f"{banner}\n{_DIV}\n"
             f"{pair}  {di} {direction}  Score {s_str}  👁 Watching\n"
@@ -92,7 +88,7 @@ def msg_signal_update(
             f"{_h1_line()}"
             f"{nline}"
             f"{_DIV}\n"
-            f"{orb}CPR: {cpr_width_pct:.2f}% width\n"
+            f"CPR: {cpr_width_pct:.2f}% width\n"
             f"Next cycle in {cycle_minutes} min"
         )
 

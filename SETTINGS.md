@@ -1,4 +1,4 @@
-# Zen Scalp v1.4 — Settings Reference
+# Zen Scalp v1.6 — Settings Reference
 
 ---
 
@@ -6,7 +6,7 @@
 
 | Key | Value |
 |---|---|
-| `bot_name` | `"Zen Scalp v1.4"` |
+| `bot_name` | `"Zen Scalp v1.6"` |
 | `demo_mode` | `true` |
 
 ---
@@ -24,18 +24,22 @@
 
 ---
 
-## SL / TP
+## SL / TP / Break-Even
 
 | Pair | sl_pips | tp_pips | pip_value_usd | be_trigger_pips | be_lock_pips |
 |---|---|---|---|---|---|
 | EUR/GBP | 20 | 30 | 11.0 (GBP-quoted) | 15 | 3 |
 | AUD/USD | 20 | 30 | 10.0 (USD-quoted) | 15 | 3 |
 
-RR: 1.5× · Break-even WR: 40%
+**RR: 1.5×**
 
-Break-even (v1.5): when MFE reaches `be_trigger_pips` (+15), SL is moved past
-entry by `be_lock_pips` (+3) in the trade's favor. Locks ~2 pips net after
-typical 1p spread. Set `be_lock_pips: 0` for classic "SL to entry" behaviour.
+**Break-even (v1.5+):** when unrealized profit reaches `be_trigger_pips` (+15),
+SL is moved past entry by `be_lock_pips` (+3) in the trade's favor — locking
+~2 pips net after typical 1p spread. Set `be_lock_pips: 0` for classic
+"SL to entry" behaviour.
+
+Per-pair values override the global `be_trigger_pips` / `be_lock_pips` keys
+when both are set.
 
 ---
 
@@ -48,9 +52,9 @@ typical 1p spread. Set `be_lock_pips: 0` for classic "SL to entry" behaviour.
 | `rsi_period` | `14` | RSI period |
 | `rsi_overbought` | `70` | SELL threshold |
 | `rsi_oversold` | `30` | BUY threshold |
-| `candle_timeframe` | `"M15"` | M15 candles |
-| `signal_threshold` | `4` | Min score to trade |
-| `min_rr_ratio` | `1.4` | Minimum RR enforced |
+| `candle_timeframe` | `"M15"` | Strategy timeframe |
+| `signal_threshold` | `4` | Min score to trade (0–6) |
+| `min_rr_ratio` | `1.4` | Minimum RR enforced before order fires |
 
 ---
 
@@ -58,27 +62,34 @@ typical 1p spread. Set `be_lock_pips: 0` for classic "SL to entry" behaviour.
 
 | Key | Value |
 |---|---|
-| `position_full_usd` | `60` — score 5–6 |
-| `position_partial_usd` | `45` — score 4 |
+| `position_full_usd` | `60` — risk per trade at score 5–6 |
+| `position_partial_usd` | `45` — risk per trade at score 4 |
 | `max_total_open_trades` | `2` — 1 per pair (EUR/GBP + AUD/USD) |
-| `max_concurrent_trades` | `1` — per pair |
+| `max_concurrent_trades` (per pair) | `1` |
+| `min_trade_units` | `1000` — reject micro-orders after margin guard |
 
 ---
 
-## Sessions
+## Sessions (SGT)
 
 ```json
 "session_thresholds": { "Tokyo": 4, "London": 4, "US": 99 }
 ```
 
-| Key | Value |
-|---|---|
-| `dead_zone_end_hour` | `7` (04:00–07:59) |
-| `tokyo_session_start_hour` | `8` |
-| `tokyo_session_end_hour` | `15` |
-| `london_session_start_hour` | `16` |
-| `us_session_start_hour` | `99` (disabled) |
-| `us_session_early_end_hour` | `99` (disabled) |
+| Key | Value | Notes |
+|---|---|---|
+| `dead_zone_start_hour` | `4` | 04:00 SGT — pre-Tokyo |
+| `dead_zone_end_hour` | `7` | 07:59 SGT — end of dead zone |
+| `tokyo_session_start_hour` | `8` | |
+| `tokyo_session_end_hour` | `15` | |
+| `london_session_start_hour` | `16` | |
+| `london_session_end_hour` | `20` | |
+| `us_session_start_hour` | `99` | **Disabled** (historical 0% WR) |
+| `us_session_end_hour` | `99` | Disabled |
+| `us_session_early_end_hour` | `99` | US continuation disabled |
+| `friday_cutoff_hour_sgt` | `23` | No new entries after Fri 23:00 |
+| `max_trades_tokyo` | `6` | |
+| `max_trades_london` | `6` | |
 
 ---
 
@@ -88,11 +99,66 @@ typical 1p spread. Set `be_lock_pips: 0` for classic "SL to entry" behaviour.
 |---|---|
 | `max_losing_trades_day` | `6` |
 | `max_losing_trades_session` | `3` |
-| `max_trades_tokyo` | `6` | Asian (primary) session cap |
-| `max_trades_london` | `6` | London (secondary) session cap |
-| `max_spread_pips` | `3` |
 | `loss_streak_cooldown_min` | `30` |
-| `breakeven_enabled` | `true` | v1.5 — was false in v1.4 |
-| `be_trigger_pips` | `15` | MFE required to fire BE (global; pair override available) |
-| `be_lock_pips` | `3` | v1.5 — pips past entry to lock when BE fires (0 = classic BE) |
-| `h1_filter_mode` | `"soft"` |
+| `max_spread_pips` | `3` (global; per-pair `spread_limits` override) |
+| `breakeven_enabled` | `true` |
+| `be_trigger_pips` | `15` (global default; pair override active) |
+| `be_lock_pips` | `3` (global default; pair override active) |
+| `h1_filter_enabled` | `true` |
+| `h1_filter_mode` | `"soft"` (penalty only; not a hard block) |
+| `h1_ema_period` | `21` |
+
+---
+
+## News Filter
+
+| Key | Value |
+|---|---|
+| `news_filter_enabled` | `true` |
+| `news_block_before_min` | `30` |
+| `news_block_after_min` | `30` |
+| `news_lookahead_min` | `120` |
+| `news_medium_penalty_score` | `-1` |
+
+---
+
+## Margin Guard
+
+| Key | Value |
+|---|---|
+| `margin_safety_factor` | `0.6` |
+| `margin_retry_safety_factor` | `0.4` |
+| `auto_scale_on_margin_reject` | `true` |
+| `telegram_show_margin` | `true` |
+
+---
+
+## Reports & Persistence
+
+| Key | Value |
+|---|---|
+| `daily_report_hour_sgt` | `4` (Mon–Fri 04:00) |
+| `weekly_report_hour_sgt` | `8` (Mon 08:15) |
+| `monthly_report_hour_sgt` | `8` (first Mon 08:00) |
+| `db_retention_days` | `90` |
+| `db_cleanup_hour_sgt` | `0:15` |
+| `db_vacuum_weekly` | `true` |
+| `cycle_minutes` | `5` |
+
+---
+
+## Cleanup notes (v1.6)
+
+The following keys present in v1.4 / v1.5 have been **removed in v1.6** as
+unused dead-config carryovers from earlier strategies (RF MP / Cable Scalp).
+None are read anywhere in the v1.6 codebase:
+
+```
+exhaustion_atr_mult     orb_fresh_minutes      orb_aging_minutes
+orb_formation_minutes   ema_fast_period        ema_slow_period
+atr_period              m5_candle_count
+```
+
+Also fixed in v1.6: `us_session_early_end_hour` default in `config_loader.py`
+was `3` (would silently enable US continuation on a fresh deploy if missing
+from `settings.json`); now `99` consistently across all defaults.

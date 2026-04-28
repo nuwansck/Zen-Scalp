@@ -2,6 +2,128 @@
 
 ---
 
+## v1.6.0 — 2026-04-28
+
+**Maintenance release: bug fix, codebase cleanup, doc refresh.** No strategy
+parameter changes — TP30 / SL20 / BE +15 lock +3 unchanged from v1.5.
+Strategy review deferred to v1.7 after the 30-trade data milestone (~May 9).
+
+### 🔴 Bug fixes
+
+**`reporting.py` — Weekly report `KeyError: 'wins'`** *(crashed every Monday since v1.0)*
+
+`_session_breakdown()` and `_setup_breakdown()` returned dicts containing
+`{count, win_rate, net_pnl}` but `msg_weekly_report._sec()` template tried
+to render `s['wins']` and `s['losses']`. Both helpers now include `wins`
+and `losses` counts so the template renders cleanly.
+
+Verified by smoke test — full template now produces:
+```
+By Session
+  London     ██████████ 100.0%  1W/0L  $+25.00
+  Tokyo      █████░░░░░  50.0%  1W/1L  $+5.00
+By Pair
+  EUR/GBP    ██████████  50.0%  1W/1L  $+5.00
+By Setup
+  BB+RSI BUY         ██████████ 100.0%
+  BB+RSI SELL        ░░░░░░░░░░   0.0%
+```
+
+**`config_loader.py` — `us_session_early_end_hour` default `3` → `99`**
+
+Latent bug: if `settings.json` ever lacked the key on a fresh deploy, the
+default would have silently enabled the 00:00–03:59 SGT US continuation
+window (historically 0% WR and explicitly disabled for Zen). Now consistent
+with `bot.py` (`99`) and matches the live `settings.json`.
+
+**`bot.py` — M5 → M15 timeframe label in database writes**
+
+`db.record_signal()` and `db.record_trade_attempt()` were hardcoding
+`timeframe="M5"` while the strategy actually uses M15 candles
+(`candle_timeframe: "M15"` in settings, read by `signals.py`). All future
+DB rows now correctly tag M15. Existing rows unchanged.
+
+### 🧹 Cleanup
+
+**Removed 8 dead config keys** (set defaults but never read by any v1.6 code).
+These were carryovers from the RF MP / Cable Scalp lineage which Zen Scalp
+doesn't use:
+
+```
+exhaustion_atr_mult     orb_fresh_minutes      orb_aging_minutes
+orb_formation_minutes   ema_fast_period        ema_slow_period
+atr_period              m5_candle_count
+```
+
+Deleted from `bot.py`, `config_loader.py`, and `settings.json`.
+
+**Removed dead ORB code path in `telegram_templates.py`** — the `WATCHING`
+signal card had a branch that prepended an "ORB: Nmin (fresh/aging/stale)"
+prefix when `orb_formed=True`, but `signals.py` never sets these — the
+branch was always dead. Removed the branch and the corresponding
+`orb_age_min` / `orb_formed` kwargs from both the template signature and
+the caller in `bot.py`.
+
+**Deleted `workflow.yml`** — disabled GitHub Actions workflow with
+`if: false` guards. Live deployment is Railway (`python scheduler.py`);
+the YAML was inert noise. Removing prevents accidental re-activation.
+
+**Stale version banners** updated across 7 files: `bot.py`, `signals.py`,
+`telegram_alert.py`, `telegram_templates.py`, `test_telegram.py`,
+`scheduler.py`, `config_loader.py`. All now read "Zen Scalp v1.6".
+
+**Stale comment cleanups** in `bot.py` setdefault block (e.g. removed
+`# v1.0: US 21-23 disabled (0% WR)` historical commit-style notes; replaced
+with concise current state).
+
+### 📚 Documentation
+
+- **`README.md`** rewritten — adds BE+3 mechanism explanation, expanded file
+  layout, reports table, post-Cable/RF strategy contrast updated.
+- **`SETTINGS.md`** rewritten — separates SL/TP, signal, sizing, sessions,
+  risk controls, news, margin, reports into clear sections. Adds v1.6
+  cleanup notes section listing the 8 removed keys.
+- **`CONFLUENCE_READY.md`** rewritten — adds Section 3 (Break-Even Mechanism),
+  Section 8 (Database & Persistence), Section 9 (Telegram Reports). Version
+  history table extended through v1.6.
+
+### Settings deltas
+
+```diff
+  "bot_name": "Zen Scalp v1.6",         # was "v1.5"
+- "exhaustion_atr_mult": 3.0,
+- "orb_fresh_minutes": 60,
+- "orb_aging_minutes": 120,
+- "ema_fast_period": 9,
+- "ema_slow_period": 21,
+- "orb_formation_minutes": 15,
+- "atr_period": 14,
+- "m5_candle_count": 40,
+```
+
+### What didn't change (deliberately)
+
+| Setting | Value | Why |
+|---|---|---|
+| `tp_pips` | 30 | Strategy review deferred to v1.7 after May 9 |
+| `sl_pips` | 20 | Same |
+| `be_trigger_pips` | 15 | Validated by 4 BE-saved trades on this sample |
+| `be_lock_pips` | 3 | ~2 pips net after spread, working as designed |
+| `signal_threshold` | 4 | Score 4 outperformed Score 6 on small sample — don't optimize |
+| `h1_filter_mode` | "soft" | Counter-trend trades winning at 80% — leave alone |
+
+### Live data context (12 trades closed since v1.5 deploy)
+
+- **Net P&L:** +$81.93 over 12 trades (8W / 4L)
+- **EUR/GBP:** 3 trades, 100% WR, net +$178.13
+- **AUD/USD:** 9 trades, 56% WR, net −$96.21
+- **BE+3 saves:** 4 trades — would have been ~−$235 in losses without v1.5
+- **Open positions:** EUR/GBP BUY @ 0.86602, AUD/USD SELL @ 0.71817
+
+Sample still too small (target: 30 trades for confident parameter tuning).
+
+---
+
 ## v1.5.0 — 2026-04-18
 
 **Break-even activation with configurable profit-lock.**

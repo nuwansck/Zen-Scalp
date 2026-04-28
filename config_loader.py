@@ -117,7 +117,7 @@ def load_settings() -> dict:
 
     original_keys = set(settings.keys())
 
-    settings.setdefault('bot_name', 'Zen Scalp v1.4')
+    settings.setdefault('bot_name', 'Zen Scalp v1.6')
     settings.setdefault('enabled', True)
     settings.setdefault('cycle_minutes', 5)
     settings.setdefault('db_retention_days', 90)
@@ -135,26 +135,19 @@ def load_settings() -> dict:
     settings.setdefault('max_trades_us', 10)
     settings.setdefault('max_losing_trades_session', 4)
     # Signal engine
-    settings.setdefault('orb_fresh_minutes',         60)
-    settings.setdefault('orb_aging_minutes',         120)
     settings.setdefault('min_rr_ratio',              1.6)   # 1.5x RR for EUR/GBP + AUD/USD
     # H1 trend filter
     settings.setdefault('h1_filter_enabled',        True)
     settings.setdefault('h1_filter_mode',           'soft')  # 'soft'=observe only | 'strict'=block
     settings.setdefault('h1_ema_period',            21)
-    settings.setdefault('ema_fast_period',           9)
-    settings.setdefault('ema_slow_period',           21)
-    settings.setdefault('orb_formation_minutes',     15)
     settings.setdefault('calendar_prune_days_ahead', 21)
     settings.setdefault('startup_dedup_seconds',     90)
-    settings.setdefault('atr_period',                14)
-    settings.setdefault('m5_candle_count',           40)
     # Session windows
     settings.setdefault('london_session_start_hour', 16)
     settings.setdefault('london_session_end_hour',   20)
-    settings.setdefault('us_session_start_hour',     99)  # disabled — 0% WR
+    settings.setdefault('us_session_start_hour',     99)  # disabled — historical 0% WR
     settings.setdefault('us_session_end_hour',       99)  # disabled
-    settings.setdefault('us_session_early_end_hour',  3)
+    settings.setdefault('us_session_early_end_hour', 99)  # US continuation disabled
     settings.setdefault('dead_zone_start_hour',       4)
     settings.setdefault('dead_zone_end_hour',         7)
     # Report schedule

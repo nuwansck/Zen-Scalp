@@ -1,4 +1,4 @@
-"""Main orchestrator for Zen Scalp v1.4 — EUR/GBP + AUD/USD M5 Scalper
+"""Main orchestrator for Zen Scalp v1.6 — EUR/GBP + AUD/USD M15 BB+RSI Mean Reversion
 
 Dedicated EUR/GBP + AUD/USD (Zen) scalping bot. Single pair, clean data, focused strategy.
 
@@ -132,7 +132,7 @@ def _pip_size(settings: dict) -> float:
 def _pip_dp(pip: float) -> int:
     """Decimal places for price rounding given pip size."""
     if pip <= 0.0001: return 5   # EUR_GBP (Zen)
-    if pip <= 0.01:   return 3   # JPY pairs (not used in Zen Scalp v1.4)
+    if pip <= 0.01:   return 3   # JPY pairs (not used in Zen Scalp v1.6)
     return 2
 
 
@@ -194,7 +194,7 @@ def _signal_payload(**kwargs):
 # ── Settings ──────────────────────────────────────────────────────────────────
 
 def validate_settings(settings: dict) -> dict:
-    required = ["pairs"]  # Zen Scalp v1.4: pair_sl_tp fixed pips used exclusively
+    required = ["pairs"]  # Zen Scalp v1.6: pair_sl_tp fixed pips used exclusively
     missing  = [k for k in required if k not in settings]
     if missing:
         raise ValueError(f"Missing required settings keys: {missing}")
@@ -214,7 +214,6 @@ def validate_settings(settings: dict) -> dict:
     settings.setdefault("be_lock_pips",                0)
     settings.setdefault("trading_day_start_hour_sgt", 8)
     settings.setdefault("max_losing_trades_session",  4)
-    settings.setdefault("exhaustion_atr_mult",        3.0)
     settings.setdefault("margin_safety_factor",       0.6)
     settings.setdefault("margin_retry_safety_factor", 0.4)
     settings.setdefault("margin_rate_override",       0.0)
@@ -227,17 +226,10 @@ def validate_settings(settings: dict) -> dict:
     settings.setdefault("news_lookahead_min",         120)
     settings.setdefault("news_medium_penalty_score",  -1)
     settings.setdefault("loss_streak_cooldown_min",   30)
-    settings.setdefault("orb_fresh_minutes",          60)
-    settings.setdefault("orb_aging_minutes",          120)
     settings.setdefault("min_rr_ratio",               1.6)
     settings.setdefault("rr_ratio",                   1.67)  # fallback only — pair_sl_tp always used
-    settings.setdefault("ema_fast_period",            9)
-    settings.setdefault("ema_slow_period",            21)
-    settings.setdefault("orb_formation_minutes",      15)
     settings.setdefault("calendar_prune_days_ahead",  21)
     settings.setdefault("startup_dedup_seconds",      90)
-    settings.setdefault("atr_period",                 14)
-    settings.setdefault("m5_candle_count",            40)
     settings.setdefault("spread_limits",              {"London": 5, "US": 5})
     settings.setdefault("max_trades_day",             20)
     settings.setdefault("max_losing_trades_day",      8)
@@ -246,9 +238,9 @@ def validate_settings(settings: dict) -> dict:
     # session window hours
     settings.setdefault("london_session_start_hour",  16)
     settings.setdefault("london_session_end_hour",    20)
-    settings.setdefault("us_session_start_hour",      99)  # v1.0: US 21-23 disabled (0% WR)
-    settings.setdefault("us_session_end_hour",        99)  # v1.0: US 21-23 disabled
-    settings.setdefault("us_session_early_end_hour",  99)  # US cont disabled  # v1.0: US cont 00-03 re-enabled
+    settings.setdefault("us_session_start_hour",      99)  # disabled — historical 0% WR
+    settings.setdefault("us_session_end_hour",        99)  # disabled
+    settings.setdefault("us_session_early_end_hour",  99)  # US continuation disabled
     settings.setdefault("dead_zone_start_hour",        4)   # 04:00 SGT — pre-Tokyo gap
     settings.setdefault("dead_zone_end_hour",           7)   # 07:59 SGT end
     # report schedule times (SGT)
@@ -1333,11 +1325,12 @@ def _signal_phase(db, run_id, settings, alert, trader, history,
                 position_after=position_usd, position_before=raw_position_usd,
             ), instrument)
 
+    _tf = settings.get("candle_timeframe", "M15")
     db.record_signal(
-        {"pair": instrument, "timeframe": "M5", "side": direction,
+        {"pair": instrument, "timeframe": _tf, "side": direction,
          "score": score, "raw_score": raw_score,
          "news_penalty": news_penalty, "details": details, "levels": levels},
-        timeframe="M5", run_id=run_id,
+        timeframe=_tf, run_id=run_id,
     )
 
     cpr_w = levels.get("cpr_width_pct", 0)
@@ -1358,8 +1351,6 @@ def _signal_phase(db, run_id, settings, alert, trader, history,
             cycle_minutes=int(settings.get("cycle_minutes", 5)),
             signal_threshold=_thr,
             setup=levels.get("setup", ""),
-            orb_age_min=levels.get("orb_age_min"),
-            orb_formed=levels.get("orb_formed", False),
             h1_trend=levels.get("h1_trend", "UNKNOWN"),
             h1_aligned=levels.get("h1_aligned", True),
             h1_filter_mode=settings.get("h1_filter_mode", "soft"),
@@ -1750,8 +1741,8 @@ def _execution_phase(db, run_id, settings, alert, trader, history,
     history.append(record)
     save_history(history)
     db.record_trade_attempt(
-        {"pair": instrument, "timeframe": "M5", "side": direction,
-         "score": score, **record},
+        {"pair": instrument, "timeframe": settings.get("candle_timeframe", "M15"),
+         "side": direction, "score": score, **record},
         ok=bool(result.get("success")),
         note=result.get("error", "trade placed"),
         broker_trade_id=record.get("trade_id"), run_id=run_id,

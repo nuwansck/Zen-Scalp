@@ -175,8 +175,11 @@ def _session_breakdown(trades: list) -> dict[str, dict]:
     result = {}
     for sess, ts in sorted(buckets.items()):
         wins = [t for t in ts if t["realized_pnl_usd"] > 0]
+        losses = [t for t in ts if t["realized_pnl_usd"] < 0]
         result[sess] = {
             "count":    len(ts),
+            "wins":     len(wins),
+            "losses":   len(losses),
             "win_rate": round(len(wins) / len(ts) * 100, 1),
             "net_pnl":  round(sum(t["realized_pnl_usd"] for t in ts), 2),
         }
@@ -192,8 +195,11 @@ def _setup_breakdown(trades: list) -> dict[str, dict]:
     result = {}
     for setup, ts in sorted(buckets.items()):
         wins = [t for t in ts if t["realized_pnl_usd"] > 0]
+        losses = [t for t in ts if t["realized_pnl_usd"] < 0]
         result[setup] = {
             "count":    len(ts),
+            "wins":     len(wins),
+            "losses":   len(losses),
             "win_rate": round(len(wins) / len(ts) * 100, 1),
             "net_pnl":  round(sum(t["realized_pnl_usd"] for t in ts), 2),
         }
