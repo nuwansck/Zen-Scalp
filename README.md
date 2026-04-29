@@ -1,4 +1,4 @@
-# Zen Scalp v1.7 — EUR/GBP + AUD/USD M15 Mean Reversion Bot
+# Zen Scalp v1.7.1 — EUR/GBP + AUD/USD M15 Mean Reversion Bot
 
 > **Deployed on Railway · OANDA API · Telegram Alerts**
 

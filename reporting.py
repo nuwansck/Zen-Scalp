@@ -325,7 +325,6 @@ def send_daily_report() -> None:
         pd_start, pd_end   = _prior_trading_day(now)
         pd_trades          = _trades_in_window(filled, pd_start, pd_end)
         pd_stats           = _stats(pd_trades)
-        pd_label           = pd_start.strftime("%A %d %b")
 
         # Week-to-date
         wtd_start, wtd_end = _current_week_window(now)
@@ -462,9 +461,7 @@ def send_weekly_export() -> None:
     h1_trend, h1_aligned — used for post-trade analysis of the H1 filter.
     """
     try:
-        from pathlib import Path
         import os
-
         data_dir     = Path(os.getenv("DATA_DIR", "/data"))
         history_file = data_dir / "trade_history.json"
         alert        = TelegramAlert()

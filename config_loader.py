@@ -117,7 +117,7 @@ def load_settings() -> dict:
 
     original_keys = set(settings.keys())
 
-    settings.setdefault('bot_name', 'Zen Scalp v1.7')
+    settings.setdefault('bot_name', 'Zen Scalp v1.7.1')
     settings.setdefault('enabled', True)
     settings.setdefault('cycle_minutes', 5)
     settings.setdefault('db_retention_days', 90)

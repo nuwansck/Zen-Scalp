@@ -1,4 +1,4 @@
-"""Main orchestrator for Zen Scalp v1.7 — EUR/GBP + AUD/USD M15 BB+RSI Mean Reversion
+"""Main orchestrator for Zen Scalp v1.7.1 — EUR/GBP + AUD/USD M15 BB+RSI Mean Reversion
 
 Dedicated EUR/GBP + AUD/USD (Zen) scalping bot. Single pair, clean data, focused strategy.
 
@@ -22,7 +22,6 @@ State isolation:
 """
 
 import json
-import logging
 import re
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -30,7 +29,7 @@ from pathlib import Path
 import pytz
 
 from calendar_fetcher import run_fetch as refresh_calendar
-from config_loader import DATA_DIR, get_bool_env, load_settings
+from config_loader import get_bool_env, load_settings
 from database import Database
 from logging_utils import configure_logging, get_logger
 from news_filter import NewsFilter
@@ -44,10 +43,10 @@ from state_utils import (
 from telegram_alert import TelegramAlert
 from telegram_templates import (
     msg_signal_update, msg_trade_opened, msg_breakeven, msg_trade_closed,
-    msg_news_block, msg_news_penalty, msg_cooldown_started, msg_daily_cap,
+    msg_news_block, msg_news_penalty, msg_cooldown_started,
     msg_spread_skip, msg_order_failed, msg_error, msg_friday_cutoff,
     msg_weekend_close,
-    msg_margin_adjustment, msg_new_day_resume, msg_session_open,
+    msg_margin_adjustment,
     msg_session_open_multi,
 )
 from reconcile_state import reconcile_runtime_state, startup_oanda_reconcile
@@ -133,7 +132,7 @@ def _pip_size(settings: dict) -> float:
 def _pip_dp(pip: float) -> int:
     """Decimal places for price rounding given pip size."""
     if pip <= 0.0001: return 5   # EUR_GBP (Zen)
-    if pip <= 0.01:   return 3   # JPY pairs (not used in Zen Scalp v1.7)
+    if pip <= 0.01:   return 3   # JPY pairs (not used in Zen Scalp v1.7.1)
     return 2
 
 
@@ -195,7 +194,7 @@ def _signal_payload(**kwargs):
 # ── Settings ──────────────────────────────────────────────────────────────────
 
 def validate_settings(settings: dict) -> dict:
-    required = ["pairs"]  # Zen Scalp v1.7: pair_sl_tp fixed pips used exclusively
+    required = ["pairs"]  # Zen Scalp v1.7.1: pair_sl_tp fixed pips used exclusively
     missing  = [k for k in required if k not in settings]
     if missing:
         raise ValueError(f"Missing required settings keys: {missing}")
@@ -957,7 +956,6 @@ def track_max_pips(history: list, trader, settings: dict, instrument: str) -> bo
     informing TP level calibration decisions.
     """
     _pip_size_val = _pip_size(settings)
-    _dp           = _pip_dp(_pip_size_val)
     changed       = False
 
     for trade in history:

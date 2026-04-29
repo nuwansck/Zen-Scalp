@@ -1,4 +1,4 @@
-"""Telegram message templates for Zen Scalp v1.7
+"""Telegram message templates for Zen Scalp v1.7.1
 AtomicFX-style: clean, state-change only, minimal noise.
 """
 from __future__ import annotations
@@ -36,7 +36,7 @@ def _split_banner(banner: str) -> tuple[str, str]:
     """Extract pair from banner.
     Handles both:
       '🇬🇧 LONDON [EUR/GBP + AUD/USD]'  → ('🇬🇧 LONDON [EUR/GBP + AUD/USD]', 'EUR/GBP + AUD/USD')
-      'Zen Scalp v1.7 | EUR/GBP + AUD/USD' → ('Zen Scalp v1.7', 'EUR/GBP + AUD/USD')
+      'Zen Scalp v1.7.1 | EUR/GBP + AUD/USD' → ('Zen Scalp v1.7.1', 'EUR/GBP + AUD/USD')
     """
     if "[" in banner and "]" in banner:
         pair = banner[banner.index("[")+1 : banner.index("]")]

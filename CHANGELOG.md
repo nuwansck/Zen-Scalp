@@ -2,6 +2,59 @@
 
 ---
 
+## v1.7.1 — 2026-04-29
+
+**Cleanup pass.** No strategy changes, no functional changes. v1.7.0 deployed
+~3 hours earlier, no errors observed. This release reduces dead code surface
+area picked up by static analysis (`pyflakes`).
+
+### Removed unused imports
+
+- `bot.py` — removed `import logging` (never referenced), `DATA_DIR` from
+  config_loader, and unused telegram template imports: `msg_daily_cap`,
+  `msg_new_day_resume`, `msg_session_open` (only `msg_session_open_multi`
+  is actually called).
+- `signals.py` — removed `from datetime import datetime` (unused).
+- `analyze_trades.py` — removed `from pathlib import Path` (unused).
+- `calendar_fetcher.py` — removed `date` from datetime imports (unused).
+- `reporting.py` — merged duplicate local-scope `from pathlib import Path`
+  with the module-level import.
+
+### Removed unused local variables
+
+- `bot.py` `track_max_pips` — `_dp` assigned but never used (was leftover
+  from earlier debug logging).
+- `oanda_trader.py` `place_order` — `detail` assigned but never used (was
+  duplicate of `reason`).
+- `calendar_fetcher.py` `_fetch_url` — `usd_events` filtered list never used
+  (relevant_events covered the case).
+- `reporting.py` `send_daily_report` — `pd_label` formatted but never
+  rendered into the message.
+- `analyze_trades.py` monthly-PnL block — `sign` variable computed but
+  unused (`{:+.2f}` format specifier already adds the sign).
+
+### Verification
+
+- All 16 Python files compile cleanly (`py_compile` no errors).
+- `pyflakes` warnings reduced from 24 → 9; remaining 9 are stylistic
+  f-strings without placeholders (harmless, no fix needed).
+- All JSON files (`settings.json`, `settings.json.example`, `railway.json`)
+  validate.
+- No changes to `check_breakeven`, `force_close_for_weekend`, signal engine,
+  Telegram templates, or any logic path. Pure deletions of dead references.
+
+### What this release does NOT change
+
+- TP/SL/BE values per pair — same as v1.7.0
+- Two-step breakeven logic — unchanged
+- Session-open dedup — still uses global state file (v1.7 fix preserved)
+- Weekend force-close — unchanged
+- Any signal calculation, scoring, or trading behavior
+
+Strategy review remains scheduled for ~30-trade milestone (mid-May).
+
+---
+
 ## v1.7.0 — 2026-04-29
 
 **First strategy parameter change since v1.5 deploy.** Per-pair split based

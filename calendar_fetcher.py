@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 import logging
 import re
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 
 import pytz
 import requests
@@ -196,7 +196,6 @@ def _fetch_ff_events(url: str, suppress_404: bool = False) -> tuple[list, int | 
         if r.status_code == 200:
             data = r.json()
             events = data if isinstance(data, list) else []
-            usd_events = [e for e in events if e.get("country", "").upper() == "USD"]
             relevant_events = [e for e in events if e.get("country", "").upper() in FOREX_CURRENCIES]
             impact_values = sorted({str(e.get("impact", "")) for e in relevant_events})
             log.info(

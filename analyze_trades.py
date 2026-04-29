@@ -10,7 +10,6 @@ Run from the same folder as trade_history.json:
 import json
 import sys
 import pytz
-from pathlib import Path
 from state_utils import TRADE_HISTORY_FILE
 from collections import defaultdict
 from datetime import datetime, timedelta
@@ -305,7 +304,6 @@ def print_report(trades, label="ALL TIME"):
         print(SEP)
         max_abs = max(abs(v) for v in monthly.values()) or 1
         for month, pnl in monthly.items():
-            sign = "+" if pnl >= 0 else "-"
             b    = bar(abs(pnl), max_abs, fill="█" if pnl >= 0 else "▒")
             print(f"  {month}   {b}  ${pnl:+.2f}")
 

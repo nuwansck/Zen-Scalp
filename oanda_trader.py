@@ -278,7 +278,6 @@ class OandaTrader:
                 if "orderCancelTransaction" in data:
                     cancel = data["orderCancelTransaction"]
                     reason = cancel.get("reason", "Unknown")
-                    detail = cancel.get("reason", "")
                     return {
                         "success": False,
                         "error": f"Order cancelled: {reason}",

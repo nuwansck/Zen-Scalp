@@ -1,4 +1,4 @@
-"""Signal engine for Bollinger Band + RSI mean reversion — Zen Scalp v1.7
+"""Signal engine for Bollinger Band + RSI mean reversion — Zen Scalp v1.7.1
 
 Strategy: Mean Reversion using Bollinger Bands (20, 2σ) + RSI (14)
 Pairs:     EUR_GBP, AUD_USD
@@ -26,7 +26,6 @@ v1.2: SL/TP/RR/H1 injection into levels dict. Correct pip values per pair.
 import logging
 import math
 import time
-from datetime import datetime
 
 import pytz
 
