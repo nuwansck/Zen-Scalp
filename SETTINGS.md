@@ -1,4 +1,4 @@
-# Zen Scalp v1.6.1 — Settings Reference
+# Zen Scalp v1.7 — Settings Reference
 
 ---
 
@@ -6,7 +6,7 @@
 
 | Key | Value |
 |---|---|
-| `bot_name` | `"Zen Scalp v1.6.1"` |
+| `bot_name` | `"Zen Scalp v1.7"` |
 | `demo_mode` | `true` |
 
 ---
@@ -24,22 +24,26 @@
 
 ---
 
-## SL / TP / Break-Even
+## SL / TP / Break-Even (v1.7 — per-pair split)
 
-| Pair | sl_pips | tp_pips | pip_value_usd | be_trigger_pips | be_lock_pips |
-|---|---|---|---|---|---|
-| EUR/GBP | 20 | 30 | 11.0 (GBP-quoted) | 15 | 3 |
-| AUD/USD | 20 | 30 | 10.0 (USD-quoted) | 15 | 3 |
+| Pair | sl_pips | tp_pips | pip_value_usd | be_trigger_pips | be_lock_pips | be_step2_trigger_pips | be_step2_lock_pips |
+|---|---|---|---|---|---|---|---|
+| EUR/GBP | 20 | 30 | 11.0 (GBP-quoted) | 15 | 3 | 25 | 13 |
+| AUD/USD | **15** | **22** | 10.0 (USD-quoted) | **11** | 3 | **18** | **10** |
 
-**RR: 1.5×**
+**RR:** EUR/GBP 1.5× · AUD/USD 1.47×
 
-**Break-even (v1.5+):** when unrealized profit reaches `be_trigger_pips` (+15),
-SL is moved past entry by `be_lock_pips` (+3) in the trade's favor — locking
-~2 pips net after typical 1p spread. Set `be_lock_pips: 0` for classic
-"SL to entry" behaviour.
+**Two-step trailing breakeven (v1.7+):** when MFE reaches `be_trigger_pips`,
+SL moves past entry by `be_lock_pips`. If MFE continues further to
+`be_step2_trigger_pips`, SL moves again to lock `be_step2_lock_pips`.
+Captures the "near-TP revert" pattern without capping the runner.
 
-Per-pair values override the global `be_trigger_pips` / `be_lock_pips` keys
-when both are set.
+Per-pair values override the global keys. Set Step 2 trigger/lock to 0 in
+either global or pair config to disable Step 2 for that pair only (falls
+back to single-step BE — same behaviour as v1.5/v1.6).
+
+Sanity guard: Step 2 trigger must be > Step 1 trigger AND Step 2 lock must
+be > Step 1 lock. Invalid configs auto-disable Step 2 with a warning.
 
 ---
 
@@ -107,6 +111,9 @@ when both are set.
 | `breakeven_enabled` | `true` |
 | `be_trigger_pips` | `15` (global default; pair override active) |
 | `be_lock_pips` | `3` (global default; pair override active) |
+| `be_step2_enabled` | `true` (v1.7 — global kill-switch for Step 2) |
+| `be_step2_trigger_pips` | `25` (global default; pair override active) |
+| `be_step2_lock_pips` | `13` (global default; pair override active) |
 | `h1_filter_enabled` | `true` |
 | `h1_filter_mode` | `"soft"` (penalty only; not a hard block) |
 | `h1_ema_period` | `21` |

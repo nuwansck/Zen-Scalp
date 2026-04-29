@@ -1,6 +1,6 @@
-# Zen Scalp v1.6.1 — Technical Specification
+# Zen Scalp v1.7 — Technical Specification
 
-**Bot:** Zen Scalp v1.6.1   **Pairs:** EUR/GBP + AUD/USD   **Exchange:** OANDA (demo)
+**Bot:** Zen Scalp v1.7   **Pairs:** EUR/GBP + AUD/USD   **Exchange:** OANDA (demo)
 **Platform:** Railway (Singapore)   **Timeframe:** M15   **Cycle:** 5 min
 
 ---
@@ -55,23 +55,54 @@ without hard-blocking — recorded in trade history for retrospective analysis.
 
 ---
 
-## 3. Break-Even Mechanism (v1.5+)
+## 3. Two-Step Trailing Break-Even (v1.7+)
 
-When unrealized profit reaches `be_trigger_pips` (default +15), `check_breakeven`
-moves SL past entry by `be_lock_pips` (default +3) in the trade's favor.
+`check_breakeven` runs every cycle on each pair's open trades. State lives
+on the trade itself: `breakeven_step` (0 = untouched, 1 = step 1 fired, 2 =
+step 2 fired). Backward-compat: trades with the legacy `breakeven_moved:
+true` flag and no step field are treated as `breakeven_step: 1`.
+
+**Step 1** (BE protection floor). When unrealized MFE reaches
+`be_trigger_pips`:
 
 ```
 BUY  trade:  new_sl = entry + (be_lock_pips × pip_size)
 SELL trade:  new_sl = entry − (be_lock_pips × pip_size)
 ```
 
-Resolution order: pair_sl_tp[PAIR] override → global setting → hardcoded default.
-Records `breakeven_moved: true` and `be_locked_pips: <n>` on the trade in
-`history.json` for audit. Idempotent — never re-fires after activation.
+Trade can no longer become a full loss after Step 1.
 
-OANDA SL price is formatted using the instrument's `displayPrecision` (5 for
-forex majors, 3 for JPY pairs, 2 for gold) — fixed in v1.5 from a hard-coded
-`%.2f` that would have rejected forex prices.
+**Step 2** (profit lock trail — NEW v1.7). When MFE further reaches
+`be_step2_trigger_pips`:
+
+```
+BUY  trade:  new_sl = entry + (be_step2_lock_pips × pip_size)
+SELL trade:  new_sl = entry − (be_step2_lock_pips × pip_size)
+```
+
+Captures "near-TP revert" outcomes (peak 25-29p that reverses without
+hitting TP30) by locking a meaningful profit floor.
+
+**Resolution order:** `pair_sl_tp[PAIR]` override → global setting → hardcoded
+default. Records `breakeven_step`, `breakeven_moved`, and `be_locked_pips`
+on the trade for audit. Idempotent — never re-fires the same step.
+
+**Sanity guard:** Step 2 trigger must be > Step 1 trigger AND Step 2 lock
+must be > Step 1 lock. Invalid configs auto-disable Step 2 with a warning.
+
+**Disable Step 2 globally:** `be_step2_enabled: false`.
+**Disable Step 2 per-pair:** set the pair's `be_step2_trigger_pips: 0` or
+`be_step2_lock_pips: 0`.
+
+**Per-pair v1.7 values:**
+
+| | Step 1 trigger | Step 1 lock | Step 2 trigger | Step 2 lock |
+|---|---|---|---|---|
+| EUR/GBP | +15p | entry +3p | +25p | entry +13p |
+| AUD/USD | +11p | entry +3p | +18p | entry +10p |
+
+OANDA SL price formatted at instrument's `displayPrecision` (5 for forex,
+3 for JPY pairs, 2 for gold) — fixed in v1.5 from a hard-coded `%.2f`.
 
 ---
 
@@ -119,7 +150,18 @@ Trading day reset: 08:00 SGT. Loss cap: 6/day. Friday entry cutoff: 23:00 SGT.
 | 5–6 | $60 full | ~$1.82 | ~$2.00 |
 
 `pip_value`: EUR/GBP = $11.00 (GBP-quoted) · AUD/USD = $10.00 (USD-quoted)
-SL: 20p · TP: 30p · BE trigger: +15p · BE lock: +3p · RR: 1.5×.
+
+**Per-pair SL/TP/BE (v1.7 split):**
+
+| | EUR/GBP | AUD/USD |
+|---|---|---|
+| TP | 30p | 22p |
+| SL | 20p | 15p |
+| BE Step 1 trigger | +15p | +11p |
+| BE Step 1 lock | +3p | +3p |
+| BE Step 2 trigger | +25p | +18p |
+| BE Step 2 lock | +13p | +10p |
+| RR | 1.5× | 1.47× |
 
 Margin guard auto-scales position down when free margin is insufficient
 (`auto_scale_on_margin_reject: true`). Falls back to `position_partial_usd`
@@ -189,4 +231,5 @@ of `trade_history.json` to Telegram every Monday 08:20 SGT.
 | v1.4 | 2026-04-17 | `max_trades_tokyo` set to 6 — matches London cap. Tokyo cap fixed on startup card. |
 | v1.5 | 2026-04-18 | **BE enabled** with configurable `be_lock_pips`. Fixed `modify_sl` precision bug (`:.2f` → `displayPrecision`). |
 | v1.6 | 2026-04-28 | Maintenance: weekly report `KeyError` fix. Removed 8 dead config keys (ORB/EMA/ATR carryovers). Fixed M5 → M15 timeframe label in DB. Fixed `us_session_early_end_hour` default 3 → 99. Removed disabled `workflow.yml`. Doc refresh. |
-| **v1.6.1** | **2026-04-28** | **Weekend gap-risk protection.** New `force_close_for_weekend()` runs every cycle on Friday from 22:00 SGT, force-closes all open positions via OANDA position-close API. Independent of `friday_cutoff` (which only blocks new entries). Configurable via `weekend_close_enabled/_hour_sgt/_minute_sgt`. New 🌙 Telegram alert template. No strategy changes. |
+| v1.6.1 | 2026-04-28 | Weekend gap-risk protection. New `force_close_for_weekend()` runs every cycle on Friday from 22:00 SGT, force-closes all open positions via OANDA position-close API. Independent of `friday_cutoff` (which only blocks new entries). Configurable via `weekend_close_enabled/_hour_sgt/_minute_sgt`. New 🌙 Telegram alert template. No strategy changes. |
+| **v1.7** | **2026-04-29** | **Per-pair parameter split + Two-step trailing breakeven.** EUR/GBP keeps TP30/SL20/BE15+3 unchanged (it works). AUD/USD reduced to TP22/SL15/BE11+3 (avg winner peak was +14.7p, doesn't justify TP30). Both pairs gain Step 2 BE: deeper profit lock when MFE continues past Step 1 trigger (EUR/GBP +25p→lock+13, AUD/USD +18p→lock+10). New `breakeven_step` field on trades (backward-compatible with `breakeven_moved`). Bug fix: session-open Telegram message dedup moved from per-pair to global state file (was firing twice every session start). |

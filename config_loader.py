@@ -117,7 +117,7 @@ def load_settings() -> dict:
 
     original_keys = set(settings.keys())
 
-    settings.setdefault('bot_name', 'Zen Scalp v1.6.1')
+    settings.setdefault('bot_name', 'Zen Scalp v1.7')
     settings.setdefault('enabled', True)
     settings.setdefault('cycle_minutes', 5)
     settings.setdefault('db_retention_days', 90)
@@ -168,10 +168,15 @@ def load_settings() -> dict:
     # minimum units after margin guard — reject micro-orders gracefully
     settings.setdefault('min_trade_units',           1000)
     settings.setdefault('telegram_min_score_alert',   3)  # suppress WATCHING below this score
-    # EUR/GBP + AUD/USD fixed pip SL/TP — pip_value_usd per pair static (USD-quoted pair)
+    # v1.7: per-pair split. EUR/GBP keeps TP30/SL20; AUD/USD reduced to TP22/SL15.
+    # Both pairs get 2-step trailing breakeven (Step 1 small lock, Step 2 deeper lock).
     settings.setdefault('pair_sl_tp', {
-        'EUR_GBP': {'sl_pips': 20, 'tp_pips': 30, 'pip_value_usd': 11.0, 'be_trigger_pips': 22},
-        'AUD_USD': {'sl_pips': 20, 'tp_pips': 30, 'pip_value_usd': 10.0, 'be_trigger_pips': 22},
+        'EUR_GBP': {'sl_pips': 20, 'tp_pips': 30, 'pip_value_usd': 11.0,
+                    'be_trigger_pips': 15, 'be_lock_pips': 3,
+                    'be_step2_trigger_pips': 25, 'be_step2_lock_pips': 13},
+        'AUD_USD': {'sl_pips': 15, 'tp_pips': 22, 'pip_value_usd': 10.0,
+                    'be_trigger_pips': 11, 'be_lock_pips': 3,
+                    'be_step2_trigger_pips': 18, 'be_step2_lock_pips': 10},
     })
 
     if set(settings.keys()) != original_keys:

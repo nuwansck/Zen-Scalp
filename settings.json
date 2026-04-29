@@ -1,5 +1,5 @@
 {
-  "bot_name": "Zen Scalp v1.6.1",
+  "bot_name": "Zen Scalp v1.7",
   "demo_mode": true,
   "enabled": true,
   "_comment_pairs": "Per-pair settings override any matching global key for that pair's cycle.",
@@ -34,6 +34,9 @@
   "breakeven_enabled": true,
   "be_trigger_pips": 15,
   "be_lock_pips": 3,
+  "be_step2_enabled": true,
+  "be_step2_trigger_pips": 25,
+  "be_step2_lock_pips": 13,
   "margin_safety_factor": 0.6,
   "margin_retry_safety_factor": 0.4,
   "margin_rate_override": 0.0,
@@ -105,14 +108,18 @@
       "tp_pips": 30,
       "pip_value_usd": 11.0,
       "be_trigger_pips": 15,
-      "be_lock_pips": 3
+      "be_lock_pips": 3,
+      "be_step2_trigger_pips": 25,
+      "be_step2_lock_pips": 13
     },
     "AUD_USD": {
-      "sl_pips": 20,
-      "tp_pips": 30,
+      "sl_pips": 15,
+      "tp_pips": 22,
       "pip_value_usd": 10.0,
-      "be_trigger_pips": 15,
-      "be_lock_pips": 3
+      "be_trigger_pips": 11,
+      "be_lock_pips": 3,
+      "be_step2_trigger_pips": 18,
+      "be_step2_lock_pips": 10
     }
   },
   "min_trade_units": 1000,

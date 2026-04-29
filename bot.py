@@ -1,4 +1,4 @@
-"""Main orchestrator for Zen Scalp v1.6.1 — EUR/GBP + AUD/USD M15 BB+RSI Mean Reversion
+"""Main orchestrator for Zen Scalp v1.7 — EUR/GBP + AUD/USD M15 BB+RSI Mean Reversion
 
 Dedicated EUR/GBP + AUD/USD (Zen) scalping bot. Single pair, clean data, focused strategy.
 
@@ -133,7 +133,7 @@ def _pip_size(settings: dict) -> float:
 def _pip_dp(pip: float) -> int:
     """Decimal places for price rounding given pip size."""
     if pip <= 0.0001: return 5   # EUR_GBP (Zen)
-    if pip <= 0.01:   return 3   # JPY pairs (not used in Zen Scalp v1.6.1)
+    if pip <= 0.01:   return 3   # JPY pairs (not used in Zen Scalp v1.7)
     return 2
 
 
@@ -195,7 +195,7 @@ def _signal_payload(**kwargs):
 # ── Settings ──────────────────────────────────────────────────────────────────
 
 def validate_settings(settings: dict) -> dict:
-    required = ["pairs"]  # Zen Scalp v1.6.1: pair_sl_tp fixed pips used exclusively
+    required = ["pairs"]  # Zen Scalp v1.7: pair_sl_tp fixed pips used exclusively
     missing  = [k for k in required if k not in settings]
     if missing:
         raise ValueError(f"Missing required settings keys: {missing}")
@@ -213,6 +213,13 @@ def validate_settings(settings: dict) -> dict:
     # 0 = exit at entry price (classic BE, net slightly negative after spread).
     # 3 = move SL past entry by 3 pips in trade's favor (~2p net after typical 1p spread).
     settings.setdefault("be_lock_pips",                0)
+    # be_step2_* (v1.7): second-stage trailing breakeven. After Step 1 fires at
+    # be_trigger_pips and locks be_lock_pips, if MFE continues to be_step2_trigger_pips
+    # the SL is moved further to lock be_step2_lock_pips. Captures the "got close
+    # to TP but reverted" outcomes without giving up the runner.
+    settings.setdefault("be_step2_enabled",            True)
+    settings.setdefault("be_step2_trigger_pips",       0)   # 0 disables Step 2
+    settings.setdefault("be_step2_lock_pips",          0)
     settings.setdefault("trading_day_start_hour_sgt", 8)
     settings.setdefault("max_losing_trades_session",  4)
     settings.setdefault("margin_safety_factor",       0.6)
@@ -269,8 +276,12 @@ def validate_settings(settings: dict) -> dict:
     settings.setdefault("min_trade_units",           1000)
     # EUR/GBP + AUD/USD only
     settings.setdefault("pair_sl_tp", {
-        "EUR_GBP": {"sl_pips": 20, "tp_pips": 30, "pip_value_usd": 11.0, "be_trigger_pips": 22, "be_lock_pips": 3},
-        "AUD_USD": {"sl_pips": 20, "tp_pips": 30, "pip_value_usd": 10.0, "be_trigger_pips": 22, "be_lock_pips": 3},
+        "EUR_GBP": {"sl_pips": 20, "tp_pips": 30, "pip_value_usd": 11.0,
+                    "be_trigger_pips": 15, "be_lock_pips": 3,
+                    "be_step2_trigger_pips": 25, "be_step2_lock_pips": 13},
+        "AUD_USD": {"sl_pips": 15, "tp_pips": 22, "pip_value_usd": 10.0,
+                    "be_trigger_pips": 11, "be_lock_pips": 3,
+                    "be_step2_trigger_pips": 18, "be_step2_lock_pips": 10},
     })
     # dead zone = pre-Tokyo gap 04:00–07:59 SGT (overrides any stale setdefault above)
     settings["dead_zone_start_hour"] = int(settings.get("dead_zone_start_hour", 4))
@@ -673,6 +684,32 @@ def save_ops_state(state: dict, instrument: str):
     save_json(_pair_state_file(OPS_STATE_FILE, instrument), state)
 
 
+# v1.7: global (cross-pair) session-open dedup. The session-open Telegram card
+# combines stats from all pairs into a single message — so it must only fire
+# once per session per day, regardless of which pair's cycle reached the check
+# first. The per-pair `OPS_STATE_FILE` couldn't enforce that (each pair had its
+# own file → both fired their own copy).
+_GLOBAL_OPS_FILE = OPS_STATE_FILE.parent / "ops_state_global.json"
+
+def load_global_ops_state() -> dict:
+    try:
+        return json.loads(_GLOBAL_OPS_FILE.read_text(encoding="utf-8")) if _GLOBAL_OPS_FILE.exists() else {}
+    except Exception:
+        return {}
+
+def save_global_ops_state(state: dict):
+    save_json(_GLOBAL_OPS_FILE, state)
+
+def send_once_global(alert, key: str, value: str, message: str):
+    """Send `message` only if `key` doesn't already map to `value` in the
+    global ops state file. Used for cross-pair dedup of session-open cards."""
+    state = load_global_ops_state()
+    if state.get(key) != value:
+        alert.send(message)
+        state[key] = value
+        save_global_ops_state(state)
+
+
 def send_once_per_state(alert, cache: dict, key: str, value: str,
                         message: str, instrument: str):
     if cache.get(key) != value:
@@ -684,39 +721,75 @@ def send_once_per_state(alert, cache: dict, key: str, value: str,
 # ── Break-even management ──────────────────────────────────────────────────────
 
 def check_breakeven(history: list, trader, alert, settings: dict, instrument: str):
-    """Move SL to break-even (± lock pips) when trade profit reaches be_trigger_pips.
+    """Two-step trailing break-even (v1.7).
 
-    v1.5: adds `be_lock_pips` — instead of moving SL to exactly entry price,
-    move it past entry by `be_lock_pips` in the trade's favor. This locks in
-    a small profit (typically enough to cover spread + a couple of pips)
-    instead of exiting at net zero / net negative after spread.
+    Step 1: when MFE reaches `be_trigger_pips`, move SL past entry by
+            `be_lock_pips` in the trade's favor. Locks ~lock_pips−1 net after
+            typical 1p spread.
 
-    Resolution order for both values:   pair_sl_tp[PAIR] → global → default.
+    Step 2 (NEW v1.7): when MFE further reaches `be_step2_trigger_pips`, move
+            SL again to lock `be_step2_lock_pips`. Captures the "near-TP
+            revert" pattern without capping the TP runner.
 
-    Direction math for the new SL:
-        BUY :  new_sl = entry + lock_dist      (SL above entry = locked long)
-        SELL:  new_sl = entry - lock_dist      (SL below entry = locked short)
+    State: `breakeven_step` int on each trade (0 = untouched, 1 = step 1
+    fired, 2 = step 2 fired). Backward compatible — old trades with
+    `breakeven_moved: True` are treated as `breakeven_step: 1`.
+
+    Resolution order for all values: pair_sl_tp[PAIR] override → global setting
+    → hard default. Step 2 disables itself if `be_step2_enabled: false` or if
+    the trigger value is 0 / unset (so the function gracefully degrades to
+    single-step BE for pairs without Step 2 configured).
+
+    Direction math is unchanged from v1.5:
+        BUY :  new_sl = entry + (lock_pips × pip_size)
+        SELL:  new_sl = entry − (lock_pips × pip_size)
     """
-    demo   = settings.get("demo_mode", True)
-    _ps    = _pip_size(settings)                          # pip size for this pair
-    _dp    = _pip_dp(_ps)
+    demo  = settings.get("demo_mode", True)
+    _ps   = _pip_size(settings)
+    _dp   = _pip_dp(_ps)
 
-    # Resolve be_trigger_pips: pair-specific → global → hard default 20p
-    _pair_sl_tp  = settings.get("pair_sl_tp", {})
-    _pair_cfg    = _pair_sl_tp.get(instrument, {})
-    _be_pips     = int(_pair_cfg.get("be_trigger_pips",
-                       settings.get("be_trigger_pips", 20)))
-    _lock_pips   = int(_pair_cfg.get("be_lock_pips",
-                       settings.get("be_lock_pips", 0)))
-    trigger_dist = _be_pips   * _ps                       # price distance in quote ccy
-    lock_dist    = _lock_pips * _ps                       # how far past entry to lock
+    # Per-pair config with global fallback
+    _pair_cfg = settings.get("pair_sl_tp", {}).get(instrument, {})
+
+    # Step 1
+    s1_trigger_pips = int(_pair_cfg.get("be_trigger_pips",
+                          settings.get("be_trigger_pips", 20)))
+    s1_lock_pips    = int(_pair_cfg.get("be_lock_pips",
+                          settings.get("be_lock_pips", 0)))
+
+    # Step 2 — feature flag + trigger value both must be > 0 to enable
+    s2_enabled      = bool(settings.get("be_step2_enabled", True))
+    s2_trigger_pips = int(_pair_cfg.get("be_step2_trigger_pips",
+                          settings.get("be_step2_trigger_pips", 0)))
+    s2_lock_pips    = int(_pair_cfg.get("be_step2_lock_pips",
+                          settings.get("be_step2_lock_pips", 0)))
+    step2_active    = s2_enabled and s2_trigger_pips > 0 and s2_lock_pips > 0
+
+    # Sanity guard: Step 2 must trigger after Step 1 and lock more than Step 1
+    if step2_active and (s2_trigger_pips <= s1_trigger_pips
+                         or s2_lock_pips <= s1_lock_pips):
+        log.warning("[%s] Step 2 BE config invalid (s1=%d/+%d, s2=%d/+%d). "
+                    "Step 2 disabled for this pair.",
+                    instrument, s1_trigger_pips, s1_lock_pips,
+                    s2_trigger_pips, s2_lock_pips)
+        step2_active = False
 
     changed = False
 
     for trade in history:
-        if trade.get("status")      != "FILLED":     continue
-        if trade.get("instrument")  != instrument:   continue
-        if trade.get("breakeven_moved"):              continue
+        if trade.get("status")     != "FILLED":   continue
+        if trade.get("instrument") != instrument: continue
+
+        # Backward-compat: derive step from legacy breakeven_moved flag
+        current_step = trade.get("breakeven_step")
+        if current_step is None:
+            current_step = 1 if trade.get("breakeven_moved") else 0
+
+        # Already at final step → nothing to do
+        if current_step >= 2:                    continue
+        if current_step >= 1 and not step2_active:
+            continue
+
         trade_id  = trade.get("trade_id")
         entry     = trade.get("entry")
         direction = trade.get("direction", "")
@@ -730,6 +803,19 @@ def check_breakeven(history: list, trader, alert, settings: dict, instrument: st
         if mid is None: continue
 
         current_price = bid if direction == "BUY" else ask
+
+        # Determine which step to attempt next
+        if current_step == 0:
+            target_trigger_pips = s1_trigger_pips
+            target_lock_pips    = s1_lock_pips
+            target_step         = 1
+        else:  # current_step == 1, step2_active is True (we already returned otherwise)
+            target_trigger_pips = s2_trigger_pips
+            target_lock_pips    = s2_lock_pips
+            target_step         = 2
+
+        trigger_dist = target_trigger_pips * _ps
+        lock_dist    = target_lock_pips    * _ps
         trigger_price = (entry + trigger_dist if direction == "BUY"
                          else entry - trigger_dist)
         triggered = (
@@ -738,33 +824,34 @@ def check_breakeven(history: list, trader, alert, settings: dict, instrument: st
         )
         if not triggered: continue
 
-        # v1.5: compute lock-adjusted SL instead of exactly entry
         new_sl_price = (entry + lock_dist if direction == "BUY"
                         else entry - lock_dist)
 
         result = trader.modify_sl(str(trade_id), float(new_sl_price), instrument=instrument)
         if result.get("success"):
-            trade["breakeven_moved"] = True
-            trade["be_locked_pips"]  = _lock_pips   # audit trail for reporting
+            trade["breakeven_step"]  = target_step
+            trade["breakeven_moved"] = True   # legacy flag kept for backward compat
+            trade["be_locked_pips"]  = target_lock_pips
             changed = True
             try:
                 unrealized_pnl = float(open_trade.get("unrealizedPL", 0))
             except Exception:
                 unrealized_pnl = 0
-            log.info("Break-even moved | %s trade=%s entry=%.*f new_sl=%.*f lock=+%dp (trigger=%.*f, +%dp)",
-                     instrument, trade_id,
-                     _dp, entry, _dp, new_sl_price, _lock_pips,
-                     _dp, trigger_price, _be_pips)
+            log.info("BE Step %d | %s trade=%s entry=%.*f new_sl=%.*f lock=+%dp (trigger=%.*f, +%dp)",
+                     target_step, instrument, trade_id,
+                     _dp, entry, _dp, new_sl_price, target_lock_pips,
+                     _dp, trigger_price, target_trigger_pips)
             alert.send(msg_breakeven(
                 trade_id=trade_id, direction=direction, entry=entry,
                 trigger_price=trigger_price, trigger_dist=trigger_dist,
                 current_price=current_price, unrealized_pnl=unrealized_pnl,
                 demo=demo, price_dp=_dp,
-                new_sl_price=new_sl_price, lock_pips=_lock_pips,
+                new_sl_price=new_sl_price, lock_pips=target_lock_pips,
+                step=target_step,
             ))
         else:
-            log.warning("Break-even failed for %s trade %s: %s",
-                        instrument, trade_id, result.get("error"))
+            log.warning("BE Step %d failed for %s trade %s: %s",
+                        target_step, instrument, trade_id, result.get("error"))
 
     if changed:
         save_history(history)
@@ -1159,11 +1246,16 @@ def _guard_phase(db, run_id, settings, alert, history, now_sgt, today, demo,
                     pairs=_pair_stats,
                     trade_cap=_wcap,
                 )
-                # Send once per session per day (keyed to first pair only)
-                send_once_per_state(
-                    alert, ops,
+                # v1.7 fix: dedup is GLOBAL across all pairs — the card itself
+                # contains data for all pairs, so each pair's cycle reaching this
+                # block must not re-send. Was per-pair in v1.6.x, causing the
+                # session-open message to fire twice (once per pair) every
+                # session start.
+                send_once_global(
+                    alert,
                     "session_open_state", f"session_open:{session}:{today}",
-                    _card, instrument)
+                    _card,
+                )
         ops["last_session"] = session
         ops.pop("ops_state", None)
         save_ops_state(ops, instrument)
@@ -1751,6 +1843,7 @@ def _execution_phase(db, run_id, settings, alert, trader, history,
         "h1_trend":             levels.get("h1_trend", "UNKNOWN"),
         "h1_aligned":           levels.get("h1_aligned", True),
         "max_pips_reached":     None,
+        "breakeven_step":       0,
         "sl_usd":               round(sl_usd, dp + 2),
         "tp_usd":               round(tp_usd, dp + 2),
         "pip_size":             pip,

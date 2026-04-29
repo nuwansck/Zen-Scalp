@@ -1,4 +1,4 @@
-# Zen Scalp v1.6 — EUR/GBP + AUD/USD M15 Mean Reversion Bot
+# Zen Scalp v1.7 — EUR/GBP + AUD/USD M15 Mean Reversion Bot
 
 > **Deployed on Railway · OANDA API · Telegram Alerts**
 
@@ -22,26 +22,45 @@ Every 5-minute cycle scores both pairs on **M15** candles:
 
 **SELL** — price ≥ upper BB + RSI overbought → expect reversion down to mean.
 **BUY** — price ≤ lower BB + RSI oversold → expect reversion up to mean.
-**TP** = 30 pips. **SL** = 20 pips. **RR = 1.5×**.
+
+**Per-pair targets (v1.7+):** EUR/GBP and AUD/USD now use different SL/TP
+sized to each pair's actual daily range. EUR/GBP keeps wider targets
+(daily ATR ~45p), AUD/USD uses tighter targets (more reactive intraday).
+
+| Pair | TP | SL | RR |
+|---|---|---|---|
+| EUR/GBP | 30p | 20p | 1.5× |
+| AUD/USD | 22p | 15p | 1.47× |
 
 Score ≥ 4 → trade. Score 5–6 → full $60. Score 4 → partial $45.
 
 ---
 
-## Break-even Protection (v1.5+)
+## Two-Step Trailing Break-even (v1.7+)
 
-When unrealized profit reaches **+15 pips**, SL automatically moves past entry by
-**+3 pips** in the trade's favor (locking ~2 pips net after typical spread).
+The bot uses a two-stage trailing breakeven. Each stage is per-pair configurable.
 
-| Direction | Entry | Trigger | New SL |
-|---|---|---|---|
-| BUY  | 0.71466 | entry + 15p (0.71616) | entry + 3p (0.71496) |
-| SELL | 0.87106 | entry − 15p (0.86956) | entry − 3p (0.87076) |
+**Step 1 — Initial protection.** When unrealized profit reaches
+`be_trigger_pips`, SL moves past entry by `be_lock_pips` in the trade's favor.
+Trade can no longer become a full loss.
 
-Trade can no longer become a full loss after BE fires. TP30 still reachable —
-upside is uncapped.
+**Step 2 — Profit lock trail (NEW in v1.7).** If MFE continues further to
+`be_step2_trigger_pips`, SL moves again to lock `be_step2_lock_pips`.
+Captures the "near-TP revert" pattern without capping the runner.
 
-Configurable via `be_trigger_pips` (global + per-pair) and `be_lock_pips`.
+| | EUR/GBP | AUD/USD |
+|---|---|---|
+| Step 1 trigger | +15p MFE | +11p MFE |
+| Step 1 lock | entry +3p | entry +3p |
+| Step 2 trigger | **+25p MFE** | **+18p MFE** |
+| Step 2 lock | **entry +13p** | **entry +10p** |
+| TP | 30p | 22p |
+
+Worst-case after Step 2 fires: locked profit at the Step 2 lock value.
+Best case unchanged: TP fires at full target.
+
+Configurable via `be_step2_trigger_pips`, `be_step2_lock_pips` (per-pair
+override), `be_step2_enabled` (global kill-switch).
 
 ---
 
@@ -102,11 +121,13 @@ Day reset: 08:00 SGT · Loss cap: 6/day · Global cap: 2 open trades (1 per pair
 | Full position (score 5–6) | $60 | $60 |
 | Partial position (score 4) | $45 | $45 |
 | pip_value_usd | $11.00 (GBP-quoted) | $10.00 (USD-quoted) |
-| SL | 20p | 20p |
-| TP | 30p | 30p |
-| BE trigger | +15p | +15p |
-| BE lock | +3p | +3p |
-| RR | 1.5× | 1.5× |
+| TP | 30p | **22p** |
+| SL | 20p | **15p** |
+| BE Step 1 trigger | +15p | **+11p** |
+| BE Step 1 lock | +3p | +3p |
+| BE Step 2 trigger | +25p | **+18p** |
+| BE Step 2 lock | +13p | **+10p** |
+| RR | 1.5× | 1.47× |
 
 ---
 

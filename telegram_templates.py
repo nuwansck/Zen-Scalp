@@ -1,4 +1,4 @@
-"""Telegram message templates for Zen Scalp v1.6.1
+"""Telegram message templates for Zen Scalp v1.7
 AtomicFX-style: clean, state-change only, minimal noise.
 """
 from __future__ import annotations
@@ -36,7 +36,7 @@ def _split_banner(banner: str) -> tuple[str, str]:
     """Extract pair from banner.
     Handles both:
       '🇬🇧 LONDON [EUR/GBP + AUD/USD]'  → ('🇬🇧 LONDON [EUR/GBP + AUD/USD]', 'EUR/GBP + AUD/USD')
-      'Zen Scalp v1.6.1 | EUR/GBP + AUD/USD' → ('Zen Scalp v1.6.1', 'EUR/GBP + AUD/USD')
+      'Zen Scalp v1.7 | EUR/GBP + AUD/USD' → ('Zen Scalp v1.7', 'EUR/GBP + AUD/USD')
     """
     if "[" in banner and "]" in banner:
         pair = banner[banner.index("[")+1 : banner.index("]")]
@@ -170,21 +170,30 @@ def msg_trade_opened(
 
 def msg_breakeven(trade_id, direction, entry, trigger_price, trigger_dist,
                   current_price, unrealized_pnl, demo, price_dp=5,
-                  new_sl_price=None, lock_pips=0) -> str:
+                  new_sl_price=None, lock_pips=0, step=1) -> str:
     """Break-even activation alert.
+
+    v1.7: adds `step` (1 or 2) for the two-step trailing breakeven. Step 1 is
+    the initial small-lock at the BE trigger; Step 2 fires when MFE continues
+    further and locks a deeper profit floor.
 
     v1.5: shows the lock amount when be_lock_pips > 0. If lock_pips is 0 or
     new_sl_price is not supplied, falls back to the classic "SL moved to
     entry" message.
     """
     mode = "DEMO" if demo else "LIVE"
+    if step == 2:
+        header = "🔒 BE Step 2 — Profit Lock Trail"
+    else:
+        header = "🔒 Break-Even Activated" if not (lock_pips and lock_pips > 0) else "🔒 BE Step 1 — Activated"
+
     if new_sl_price is not None and lock_pips and lock_pips > 0:
         sl_line = (f"Entry:   {entry:.{price_dp}f}  →  SL: {new_sl_price:.{price_dp}f} "
                    f"(+{lock_pips}p locked)")
     else:
         sl_line = f"Entry:   {entry:.{price_dp}f}  →  SL moved to entry"
     return (
-        f"🔒 Break-Even Activated\n{_DIV}\n"
+        f"{header}\n{_DIV}\n"
         f"{direction}  Trade #{trade_id}\n"
         f"{sl_line}\n"
         f"Trigger: {trigger_price:.{price_dp}f}  (now: {current_price:.{price_dp}f})\n"

@@ -2,6 +2,204 @@
 
 ---
 
+## v1.7.0 — 2026-04-29
+
+**First strategy parameter change since v1.5 deploy.** Per-pair split based
+on 16 closed trades of live data. Two-step trailing breakeven added to
+both pairs. Plus the duplicate session-open Telegram bug fix.
+
+### Why now (16 trades of data)
+
+| | Trades | WR | Net P&L |
+|---|---|---|---|
+| EUR/GBP | 4 | 100% (4W/0L) | +$189.66 |
+| AUD/USD | 12 | 67% (8W/4L) | +$97.97 |
+
+EUR/GBP is genuinely working at TP30 — includes a clean 61-hour TP30 runner
+worth +$115. **Don't break what works.**
+
+AUD/USD shows a different pattern. Avg winner closed at **+14.7p**, avg
+estimated peak MFE only **+14.1p**. Most trades that reach the BE trigger
+at +15p stall there and revert (4 of 7 BE-triggered trades). Strict bimodal
+distribution: failure (0p) → BE zone (15-19p) → TP (30+p), with almost
+nothing in between.
+
+The asymmetry is now too clean to keep both pairs on identical settings.
+
+### Per-pair split
+
+| | EUR/GBP | AUD/USD (changed) |
+|---|---|---|
+| TP | 30p | **22p** (was 30) |
+| SL | 20p | **15p** (was 20) |
+| BE Step 1 trigger | 15p | **11p** (was 15) |
+| BE Step 1 lock | +3p | +3p (unchanged) |
+| RR | 1.5× | 1.47× ✅ passes 1.4 floor |
+
+AUD/USD changes scale proportionally to the smaller TP. Earlier BE trigger
+catches the BE zone earlier with cushion. Tighter SL converts each
+"straight stop" failure from −$60 into −$45.
+
+### Two-step trailing breakeven (NEW)
+
+The biggest functional addition. When a trade pushes past Step 1 lock and
+keeps running, Step 2 fires at a higher MFE and locks deeper profit.
+
+| | EUR/GBP | AUD/USD |
+|---|---|---|
+| Step 1 trigger / lock | +15p / +3p | +11p / +3p |
+| Step 2 trigger / lock | **+25p / +13p** ← NEW | **+18p / +10p** ← NEW |
+
+**What this protects:** trades that peak in the +25–29p band (or +18–21p
+on AUD/USD) and then revert. Under v1.5/v1.6, those trades got knocked back
+to BE+3 (~$8 win). Under v1.7, they exit at the Step 2 lock (~$32 on
+EUR/GBP, ~$22 on AUD/USD).
+
+**What this doesn't break:** Step 2 fires on the way to TP. If price
+continues past Step 2 trigger to hit TP, the trade closes at full TP — no
+upside cap. Step 2 only matters if price reverses *between* Step 2 trigger
+and TP.
+
+### Code architecture — `check_breakeven` rewrite
+
+State stored on each trade:
+```python
+trade["breakeven_step"]   # 0 = untouched, 1 = step 1 fired, 2 = step 2 fired
+trade["breakeven_moved"]  # legacy bool, kept for backward compatibility
+trade["be_locked_pips"]   # audit: which lock value is currently in place
+```
+
+Backward compat: trades that existed before v1.7 deploy will have
+`breakeven_moved: True/False` but no `breakeven_step` field. The function
+infers: `step = 1 if breakeven_moved else 0`. This means existing trade
+214 (currently BE-locked from v1.6.1) is correctly read as already at Step
+1 and is eligible for Step 2 promotion if its MFE keeps climbing.
+
+Resolution order for all four BE values: `pair_sl_tp[PAIR]` override →
+global setting → hardcoded default.
+
+**Sanity guard:** Step 2 trigger must be > Step 1 trigger AND Step 2 lock
+must be > Step 1 lock. Invalid configs auto-disable Step 2 with a warning,
+falling back to single-step BE behaviour.
+
+**Disable Step 2 globally:** `be_step2_enabled: false`.
+**Disable per pair:** set the pair's `be_step2_trigger_pips: 0` (or lock).
+
+### Settings deltas
+
+```diff
+  "bot_name": "Zen Scalp v1.7",                       # was "v1.6.1"
++ "be_step2_enabled": true,                           # global kill-switch
++ "be_step2_trigger_pips": 25,                        # global default
++ "be_step2_lock_pips": 13,                           # global default
+
+  "pair_sl_tp": {
+    "EUR_GBP": {
+      "sl_pips": 20, "tp_pips": 30, "pip_value_usd": 11.0,
+      "be_trigger_pips": 15, "be_lock_pips": 3,
++     "be_step2_trigger_pips": 25,
++     "be_step2_lock_pips": 13
+    },
+    "AUD_USD": {
+-     "sl_pips": 20, "tp_pips": 30,
++     "sl_pips": 15, "tp_pips": 22,
+      "pip_value_usd": 10.0,
+-     "be_trigger_pips": 15, "be_lock_pips": 3
++     "be_trigger_pips": 11, "be_lock_pips": 3,
++     "be_step2_trigger_pips": 18,
++     "be_step2_lock_pips": 10
+    }
+  }
+```
+
+### Bug fix: duplicate session-open Telegram
+
+**Symptom:** every session start (Tokyo at 08:00, London at 16:00), the
+🗼/🇬🇧 session-open multi-pair card was being sent **twice** to Telegram.
+
+**Root cause:** `send_once_per_state` was called with `instrument` parameter
+which keyed the dedup state to a per-pair `ops_state_<pair>.json` file.
+Each pair's cycle independently wrote its own dedup key — so EUR/GBP fired
+the card once (writing to `ops_state_eurgbp.json`), then AUD/USD fired the
+same card again (writing to `ops_state_audusd.json`). The "send once per
+session per day (keyed to first pair only)" comment described intent, not
+reality.
+
+**Fix:** new `send_once_global()` helper using a separate
+`ops_state_global.json` file shared across all pairs. The session-open
+card now dedups on the truly global key.
+
+```python
+# Was: per-pair dedup (caused double-send)
+send_once_per_state(alert, ops, "session_open_state",
+                    f"session_open:{session}:{today}", _card, instrument)
+
+# Now: global dedup (one card per session per day)
+send_once_global(alert, "session_open_state",
+                 f"session_open:{session}:{today}", _card)
+```
+
+### Files changed
+
+```
+bot.py                  — check_breakeven 2-step rewrite, send_once_global helper,
+                          breakeven_step init on new trades, session-open dedup fix,
+                          pair_sl_tp + Step 2 setdefault block
+config_loader.py        — pair_sl_tp default updated for v1.7 split
+reconcile_state.py      — adds breakeven_step:0 to recovered trade records
+telegram_templates.py   — msg_breakeven adds step kwarg, differentiates Step 1/Step 2 headers
+settings.json           — Step 2 globals + per-pair Step 2 overrides + AUD/USD reduced TP/SL
+version.py              — 1.6.1 → 1.7.0
+README.md               — strategy section, BE section, risk table all updated
+SETTINGS.md             — SL/TP table extended with Step 2 columns, Risk Controls section
+CONFLUENCE_READY.md     — Section 3 (BE) rewritten, Section 6 (Sizing) per-pair, version table
+CHANGELOG.md            — this entry
+```
+
+### Tests
+
+End-to-end simulation with mocked OANDA trader and alert sender — 5 scenarios:
+
+| Scenario | Result |
+|---|---|
+| EUR/GBP BUY: walks +9.5 → +15 → +20 → +25 → +28p MFE | Step 1 fires at +15, Step 2 fires at +25, both alerts correct ✓ |
+| AUD/USD SELL: walks +5 → +11 → +18p MFE | Step 1 fires at +11, Step 2 fires at +18 ✓ |
+| Backward-compat: legacy trade with `breakeven_moved: True` no `breakeven_step` | Correctly inferred as Step 1, advances to Step 2 at +25 ✓ |
+| `be_step2_enabled: false` | Step 1 trade ignored at +25 (Step 2 disabled) ✓ |
+| Invalid Step 2 config (s2_lock ≤ s1_lock) | Sanity guard fires, Step 2 auto-disabled with warning ✓ |
+| Cross-pair session-open dedup | Card sent once per session per day, regardless of which pair's cycle reached the check first ✓ |
+
+All Python files compile clean. JSON valid. SL prices format at correct
+displayPrecision (5 for forex).
+
+### What we'll watch at next review (~30 trades)
+
+1. **AUD/USD net P&L:** does the tighter TP+SL improve net? Specifically
+   compare loss-side (was -$252 over 4 failures) vs reduced-TP impact
+   (would have given up ~$68 of TP30 winners). Break-even point: 5+ failure
+   trades vs 3 TP22 winners.
+
+2. **Step 2 hit rate:** how often does Step 2 fire? If it never fires (all
+   trades either die before Step 1 or sail to TP), the +25p band is empty
+   and Step 2 is dead weight. If it fires frequently and saves real money
+   on reverts, it's the right addition.
+
+3. **EUR/GBP unchanged:** WR and net should look like v1.6.1. If it
+   regresses, something is wrong with the changes (regression test).
+
+4. **No more duplicate session-open messages.**
+
+### What didn't change
+
+- Signal engine (BB+RSI, M15, score 4 threshold, H1 soft filter)
+- Position sizing ($45/$60)
+- Session schedule (Tokyo 8-16, London 16-21, US disabled)
+- Weekend gap-protection (Fri 22:00 SGT close)
+- Margin guard, news filter, dead zone, Friday entry cutoff
+- Database, reporting, reconciliation
+
+---
+
 ## v1.6.1 — 2026-04-28
 
 **Weekend gap-risk protection.** Force-close all open positions every Friday

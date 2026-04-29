@@ -84,6 +84,7 @@ def reconcile_runtime_state(trader, history: list, instrument: str, now_sgt, ale
             "status": "FILLED",
             "realized_pnl_usd": None,
             "breakeven_moved": False,
+            "breakeven_step": 0,
         }
         history.append(recovered)
         summary["recovered_trade_ids"].append(trade_id)
@@ -251,6 +252,7 @@ def startup_oanda_reconcile(
                 "status":              "FILLED",
                 "realized_pnl_usd":    pnl,
                 "breakeven_moved":     False,
+                "breakeven_step":      0,
                 "closed_alert_sent":   True,
             }
             history.append(record)
