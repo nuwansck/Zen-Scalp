@@ -231,7 +231,7 @@ def print_report(trades, label="ALL TIME"):
     stats, open_trades = overall_stats(trades)
 
     print(f"\n{SEP2}")
-    print(f"  📊  CPR GOLD BOT — PERFORMANCE REPORT")
+    print("  📊  ZEN SCALP — PERFORMANCE REPORT")
     print(f"  Period: {label}")
     print(SEP2)
 
@@ -239,7 +239,7 @@ def print_report(trades, label="ALL TIME"):
         print("\n  ⚠️  No closed trades found yet.")
         if open_trades:
             print(f"  {len(open_trades)} trade(s) currently open / pending.")
-        print(f"\n  Run the bot and collect some trades first!\n")
+        print("\n  Run the bot and collect some trades first!\n")
         return
 
     # ── Overall ──────────────────────────────────────────────
@@ -260,7 +260,7 @@ def print_report(trades, label="ALL TIME"):
     # ── Session breakdown ────────────────────────────────────
     sess = session_stats(trades)
     if sess:
-        print(f"\n  🌍  BY SESSION")
+        print("\n  🌍  BY SESSION")
         print(SEP)
         best  = max(sess, key=lambda s: sess[s]["win_rate"])
         worst = min(sess, key=lambda s: sess[s]["win_rate"])
@@ -279,7 +279,7 @@ def print_report(trades, label="ALL TIME"):
     # ── Setup breakdown ──────────────────────────────────────
     setups = setup_stats(trades)
     if setups:
-        print(f"\n  🎯  BY SETUP")
+        print("\n  🎯  BY SETUP")
         print(SEP)
         max_wr = max(v["win_rate"] for v in setups.values()) if setups else 1
         for name, s in setups.items():
@@ -290,7 +290,7 @@ def print_report(trades, label="ALL TIME"):
     # ── Score breakdown ──────────────────────────────────────
     scores = score_stats(trades)
     if scores:
-        print(f"\n  🔢  BY SIGNAL SCORE")
+        print("\n  🔢  BY SIGNAL SCORE")
         print(SEP)
         max_wr = max(v["win_rate"] for v in scores.values()) if scores else 1
         for score, s in scores.items():
@@ -300,7 +300,7 @@ def print_report(trades, label="ALL TIME"):
     # ── Monthly P&L ──────────────────────────────────────────
     monthly = monthly_pnl(trades)
     if len(monthly) > 1:
-        print(f"\n  📅  MONTHLY P&L")
+        print("\n  📅  MONTHLY P&L")
         print(SEP)
         max_abs = max(abs(v) for v in monthly.values()) or 1
         for month, pnl in monthly.items():

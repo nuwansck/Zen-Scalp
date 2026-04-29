@@ -1,4 +1,4 @@
-"""Signal engine for Bollinger Band + RSI mean reversion — Zen Scalp v1.7.1
+"""Signal engine for Bollinger Band + RSI mean reversion — Zen Scalp v1.7.3
 
 Strategy: Mean Reversion using Bollinger Bands (20, 2σ) + RSI (14)
 Pairs:     EUR_GBP, AUD_USD
@@ -15,12 +15,11 @@ Direction:
   SELL — price ≥ upper BB + RSI overbought  → reversion down to mean
   BUY  — price ≤ lower BB + RSI oversold    → reversion up to mean
 
-TP: middle band (SMA20) ≈ 30 pips
-SL: just outside outer band ≈ 20 pips
-RR: 1.5× | Break-even WR: 40%
+Per-pair targets (v1.7+):
+  EUR/GBP: TP 30p · SL 20p · RR 1.5×
+  AUD/USD: TP 22p · SL 15p · RR 1.47×
 
-v1.1: Fixed candle fetch — internal _fetch_candles HTTP pattern (OANDA API direct).
-v1.2: SL/TP/RR/H1 injection into levels dict. Correct pip values per pair.
+Two-step trailing breakeven on both pairs (see check_breakeven in bot.py).
 """
 
 import logging

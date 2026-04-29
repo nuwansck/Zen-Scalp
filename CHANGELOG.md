@@ -2,6 +2,144 @@
 
 ---
 
+## v1.7.3 — 2026-04-29
+
+**Polish pass.** Pyflakes is now 100% clean (was 9 stylistic warnings).
+Several stale docstrings and one stale HTTP header fixed. Zero functional
+changes — every code path that runs is identical to v1.7.2.
+
+### Pyflakes warnings: 9 → 0
+
+- `analyze_trades.py` (6 sites) — removed `f` prefix from static strings
+  with no placeholders. Pure cosmetic, identical at runtime.
+- `telegram_templates.py` (2 sites) — same fix in the disabled-US session
+  branches inside `msg_startup`.
+- `scheduler.py` — the bare `exc` in the metrics endpoint catch-all was
+  swallowing exceptions silently. Now logs them at warning level
+  (`logger.warning("metrics endpoint error: %s", exc)`) so any future
+  HTTP issues are visible without changing behavior.
+
+### Stale docstrings updated
+
+- **`bot.py` module header** — claimed "Single pair, clean data" (we run
+  two pairs) and listed an incorrect session schedule ("London 16-20,
+  US cont 00-03, Tokyo 08-15 ≥5/6"). Now correctly documents Tokyo
+  PRIMARY ≥4 / London SECONDARY ≥4 / US disabled, and the example
+  per-pair file paths use `eurgbp`/`audusd` instead of legacy `gbpusd`.
+  Also adds a brief mention of the v1.7+ two-step BE and weekend-close
+  features in the architecture summary.
+
+- **`reporting.py` module header** — claimed "Daily — Mon–Fri at 15:30
+  SGT, 30 min before London open." Actual daily report time is
+  **04:00 SGT** (dead-zone start). Updated and added a note that the
+  schedule values are configurable via settings.
+
+- **`database.py` module header** — claimed "for the re-architected CPR
+  bot." This is Zen Scalp, not CPR Gold. Updated to reference Zen Scalp
+  and clarified the database stores cycle-level signals, trade attempts,
+  and runtime state.
+
+- **`calendar_fetcher.py` module header** — was a leftover commit-style
+  changelog ("Architecture-only improvements:" etc.) that's been stale
+  for months. Rewritten as a forward-looking description of what the
+  module does now.
+
+### Stale strings fixed
+
+- **`analyze_trades.py` print_report** — header line read
+  `📊  CPR GOLD BOT — PERFORMANCE REPORT`. The script reads Zen Scalp's
+  trade history; rebrand the header to `📊  ZEN SCALP — PERFORMANCE REPORT`.
+
+- **`calendar_fetcher.py` HTTP request** — User-Agent header was still
+  `CableScalp/1.0` from the strategy's lineage. Updated to `ZenScalp/1.7`
+  so any FF-side analytics/rate-limiting attributes our traffic correctly.
+  Cosmetic but worth fixing while we're in the area.
+
+### Verification
+
+- All 16 Python files compile cleanly.
+- `pyflakes *.py` returns exit code 0 with zero output (down from 9).
+- All JSON files (`settings.json`, `settings.json.example`, `railway.json`)
+  validate.
+- All public symbols (`check_breakeven`, `force_close_for_weekend`,
+  `send_once_global`, all used Telegram templates) intact.
+- Strategy parameters per pair unchanged — see v1.7.0 for those values.
+- No imports added or removed, no function signatures changed.
+
+### What this release does NOT change
+
+- TP/SL/BE values per pair — same as v1.7.0/v1.7.1/v1.7.2
+- Two-step breakeven logic — unchanged
+- Weekend close — unchanged
+- Strategy / scoring / execution — unchanged
+- Reports, reconciliation, telemetry — unchanged
+
+Strategy review remains scheduled for ~30-trade milestone (mid-May).
+
+This is the final cleanup release before the strategy review. Subsequent
+releases should focus on data analysis and parameter tuning — not code
+hygiene.
+
+---
+
+## v1.7.2 — 2026-04-29
+
+**Deeper cleanup pass.** Round 2 of dead-code reduction after v1.7.1
+deployed cleanly. Found genuinely orphaned code beyond what pyflakes
+catches by checking for unused private functions and unused module-level
+exports.
+
+### Removed orphan Telegram templates
+
+The following template functions were defined in `telegram_templates.py`
+but never imported or called anywhere in the codebase. bot.py uses inline
+f-strings for these alerts (see lines around 1296-1322 in bot.py):
+
+- `msg_daily_cap()` — daily cap reached alert
+- `msg_new_day_resume()` — new trading day notice
+- `msg_session_cap()` — session loss cap reached
+- `msg_session_open()` — single-pair session open card (Zen uses the
+  multi-pair version `msg_session_open_multi` instead)
+
+Replaced with a placeholder comment block referencing this CHANGELOG entry
+in case any of these are needed again. ~70 lines removed.
+
+### Removed orphan helper
+
+- `bot.py` `_next_day_reset_sgt()` — was likely used by `msg_daily_cap`
+  to format the "Resets:" line. With that template gone, the helper is
+  dead. ~10 lines removed.
+
+### Updated stale docstring
+
+- `signals.py` module docstring still claimed `TP: 30 pips · SL: 20 pips`
+  globally. After v1.7's per-pair split, that's only true for EUR/GBP.
+  Now correctly states EUR/GBP TP30/SL20 and AUD/USD TP22/SL15.
+  Also removed v1.1/v1.2 micro-changelog lines that belong in CHANGELOG.md
+  not in module docstrings.
+
+### Verification
+
+- All 16 Python files compile cleanly.
+- `pyflakes` warnings: still 9 (all stylistic f-strings without
+  placeholders — same as v1.7.1, no new issues introduced).
+- All trading logic, strategy parameters, BE behavior, weekend close,
+  and session handling unchanged.
+- Used `_session_icon()` helper still active (4 call sites).
+- Multi-pair `msg_session_open_multi()` still active (the one Zen uses).
+
+### What this release does NOT change
+
+- TP/SL/BE values per pair — same as v1.7.0/v1.7.1
+- Two-step breakeven logic — unchanged
+- Weekend close — unchanged
+- Strategy / scoring / execution — unchanged
+- Reports, reconciliation, telemetry — unchanged
+
+Strategy review remains scheduled for ~30-trade milestone (mid-May).
+
+---
+
 ## v1.7.1 — 2026-04-29
 
 **Cleanup pass.** No strategy changes, no functional changes. v1.7.0 deployed

@@ -1,6 +1,6 @@
-# Zen Scalp v1.7.1 — Technical Specification
+# Zen Scalp v1.7.3 — Technical Specification
 
-**Bot:** Zen Scalp v1.7.1   **Pairs:** EUR/GBP + AUD/USD   **Exchange:** OANDA (demo)
+**Bot:** Zen Scalp v1.7.3   **Pairs:** EUR/GBP + AUD/USD   **Exchange:** OANDA (demo)
 **Platform:** Railway (Singapore)   **Timeframe:** M15   **Cycle:** 5 min
 
 ---

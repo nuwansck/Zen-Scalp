@@ -1,4 +1,4 @@
-"""Telegram message templates for Zen Scalp v1.7.1
+"""Telegram message templates for Zen Scalp v1.7.3
 AtomicFX-style: clean, state-change only, minimal noise.
 """
 from __future__ import annotations
@@ -36,7 +36,7 @@ def _split_banner(banner: str) -> tuple[str, str]:
     """Extract pair from banner.
     Handles both:
       '🇬🇧 LONDON [EUR/GBP + AUD/USD]'  → ('🇬🇧 LONDON [EUR/GBP + AUD/USD]', 'EUR/GBP + AUD/USD')
-      'Zen Scalp v1.7.1 | EUR/GBP + AUD/USD' → ('Zen Scalp v1.7.1', 'EUR/GBP + AUD/USD')
+      'Zen Scalp v1.7.3 | EUR/GBP + AUD/USD' → ('Zen Scalp v1.7.3', 'EUR/GBP + AUD/USD')
     """
     if "[" in banner and "]" in banner:
         pair = banner[banner.index("[")+1 : banner.index("]")]
@@ -275,66 +275,16 @@ def msg_cooldown_started(streak, cooldown_until_sgt, session_name="",
     )
 
 
-# ── 8. Daily cap ──────────────────────────────────────────────────────────────
-
-def msg_daily_cap(cap_type, count, limit, window="", daily_pnl=None,
-                  session_name="", last_loss_time_sgt="", reset_time_sgt="") -> str:
-    label  = ("Max losing trades" if cap_type == "losing_trades"
-              else ("Max trades/day" if cap_type == "total_trades" else f"{window} cap"))
-    footer = "Resuming next trading day" if cap_type in ("losing_trades","total_trades") else "Resuming next window"
-    pline  = f"Day P&L: ${daily_pnl:+.2f}\n" if daily_pnl is not None else ""
-    rline  = f"Resets:  {reset_time_sgt}\n"   if reset_time_sgt else ""
-    return (
-        f"🛑 Cap Reached\n{_DIV}\n"
-        f"Type:  {label}\n"
-        f"Count: {count}/{limit}\n"
-        f"{pline}{rline}"
-        f"{footer}"
-    )
-
-
-# ── 8b. New day ───────────────────────────────────────────────────────────────
-
-def msg_new_day_resume(prev_day_pnl=None, prev_day_trades=0, london_open_sgt="16:00") -> str:
-    prev = (f"Yesterday: {prev_day_trades} trade(s)  ${prev_day_pnl:+.2f}\n"
-            if prev_day_trades > 0 and prev_day_pnl is not None else "")
-    return (
-        f"✅ New Trading Day\n{_DIV}\n"
-        f"Daily limits reset\n"
-        f"{prev}"
-        f"Next session: London {london_open_sgt} SGT"
-    )
-
-
-# ── 8c. Session cap ───────────────────────────────────────────────────────────
-
-def msg_session_cap(session_name, session_losses, session_limit,
-                    day_losses, day_limit, next_session) -> str:
-    si  = _session_icon(session_name)
-    ni  = _session_icon(next_session)
-    rem = max(0, day_limit - day_losses)
-    return (
-        f"🔶 Session Cap\n{_DIV}\n"
-        f"{si} {session_name}: {session_losses}/{session_limit} losses  (paused)\n"
-        f"Day: {day_losses}/{day_limit} losses  ({rem} remaining)\n"
-        f"{_DIV}\n"
-        f"Next: {ni} {next_session}"
-    )
+# ── 8. Daily / session cap (removed v1.7.1) ───────────────────────────────────
+# msg_daily_cap, msg_new_day_resume, msg_session_cap removed in v1.7.1 — bot.py
+# uses inline f-strings for these alerts (see lines around 1296-1322 in bot.py).
+# Restore from CHANGELOG history if needed.
 
 
 # ── 9. Session open ───────────────────────────────────────────────────────────
-
-def msg_session_open(session_name, session_hours_sgt, trade_cap,
-                     trades_today, daily_pnl) -> str:
-    icon    = _session_icon(session_name)
-    pnl_str = f"${daily_pnl:+.2f}" if trades_today > 0 else "—"
-    return (
-        f"{icon} {session_name} Open  {session_hours_sgt} SGT\n"
-        f"{_DIV}\n"
-        f"Today:  {trades_today} trade(s)  {pnl_str}  |  cap {trade_cap}\n"
-        f"Scanning for BB + RSI setups..."
-    )
-
+# Single-pair msg_session_open removed in v1.7.1 — Zen Scalp uses the multi
+# version below. Restore from CHANGELOG history if a single-pair flavour
+# is ever needed again.
 
 
 # ── 9b. Combined multi-pair session open (Zen Scalp) ─────────────────────────
@@ -477,9 +427,9 @@ def msg_startup(
         f"  ✈️  {dead_zone_start:02d}:00–{dead_zone_end:02d}:59  Dead zone\n"
         f"  🗼 {tokyo_start:02d}:00–{tokyo_end:02d}:59  Tokyo      cap {max_trades_tokyo}  score≥{tok_thr}\n"
         f"  🇬🇧 {london_start:02d}:00–{london_end:02d}:59  London     cap {max_trades_london}  score≥{lon_thr}\n"
-        + (f"  🚫 US session   disabled\n" if us_start >= 99 else
+        + ("  🚫 US session   disabled\n" if us_start >= 99 else
            f"  🗽 {us_start:02d}:00–{us_end:02d}:59  US         cap {max_trades_us}  score≥{us_thr}\n")
-        + (f"  🚫 US cont.    disabled\n" if us_early_end >= 99 else
+        + ("  🚫 US cont.    disabled\n" if us_early_end >= 99 else
            f"  🗽 00:00–{us_early_end:02d}:59  US cont.   cap {max_trades_us}  score≥{us_thr}\n")
         + f"{_DIV}\n"
         + f"Day reset: {trading_day_start_hour:02d}:00 SGT  |  Loss cap: {max_losing_day}/day\n"

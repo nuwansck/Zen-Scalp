@@ -1,13 +1,12 @@
-"""
-Forex Factory calendar fetcher for the Zen Scalp Bot.
+"""Forex Factory calendar fetcher for the Zen Scalp Bot.
 
-Architecture-only improvements:
-- Uses /data/runtime_state.json cooldown tracking
-- Backs off after HTTP 429 responses
-- Avoids noisy warnings for expected next-week 404 responses
-- Keeps the existing calendar_cache.json if refresh is skipped or fails
+Pulls the weekly economic calendar from FF's JSON feed, caches it to
+/data/calendar_cache.json, and tracks cooldown state in runtime_state.json
+to avoid re-fetching too often. Backs off after HTTP 429 responses; treats
+HTTP 404 on next-week feed as expected (not yet published).
 
-Strategy is unchanged. This only affects how often the news calendar is refreshed.
+Used by news_filter.py to compute pre/post-event blocks and penalties on
+medium-impact events for USD/GBP/EUR/JPY.
 """
 
 from __future__ import annotations
@@ -192,7 +191,7 @@ def _parse_ff_event(event: dict) -> dict | None:
 
 def _fetch_ff_events(url: str, suppress_404: bool = False) -> tuple[list, int | None]:
     try:
-        r = requests.get(url, timeout=15, headers={"User-Agent": "CableScalp/1.0"})
+        r = requests.get(url, timeout=15, headers={"User-Agent": "ZenScalp/1.7"})
         if r.status_code == 200:
             data = r.json()
             events = data if isinstance(data, list) else []

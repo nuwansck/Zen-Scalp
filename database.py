@@ -1,7 +1,8 @@
-"""Lightweight SQLite persistence for the re-architected CPR bot.
+"""Lightweight SQLite persistence for the Zen Scalp Bot.
 
-Used for observability and durability only. It does not alter signal generation
-or trade decision logic.
+Used for observability and durability only. Stores cycle-level signals,
+trade attempts, and runtime state. Does not alter signal generation or
+trade decision logic — those live in signals.py and bot.py.
 """
 from __future__ import annotations
 

@@ -1,24 +1,37 @@
-"""Main orchestrator for Zen Scalp v1.7.1 — EUR/GBP + AUD/USD M15 BB+RSI Mean Reversion
+"""Main orchestrator for Zen Scalp v1.7.3 — EUR/GBP + AUD/USD M15 BB+RSI Mean Reversion
 
-Dedicated EUR/GBP + AUD/USD (Zen) scalping bot. Single pair, clean data, focused strategy.
+Dual-pair (EUR/GBP + AUD/USD) M15 mean-reversion bot using Bollinger Bands + RSI
++ CPR pivot bias. Asian-session primary; London secondary.
 
-Active sessions: London 16–20 SGT (≥4/6), US cont 00–03 SGT (≥4/6), Tokyo 08–15 SGT (≥5/6)
-Disabled: US session 21–23 SGT (0% WR in live testing)
+Active sessions (SGT):
+  Tokyo  08:00–15:59  threshold ≥4/6  cap 6   ← PRIMARY
+  London 16:00–20:59  threshold ≥4/6  cap 6   ← SECONDARY
+Disabled:
+  US session    21:00–23:59  (historical 0% WR)
+  US continuation 00:00–03:59 (trending hours)
 
-All configuration lives in settings.json under the top-level "pairs" key.
-Per-pair values override global defaults.
+All configuration lives in settings.json. Per-pair `pair_sl_tp` overrides
+each pair's TP/SL/BE — EUR/GBP uses TP30/SL20, AUD/USD uses TP22/SL15
+(per-pair split, v1.7+).
 
 Architecture:
   run_bot_cycle() loops over every enabled pair each 5-minute cycle.
   For each pair it runs three phases:
-    _guard_phase()      — pre-trade checks (session, caps, cooldown, OANDA)
-    _signal_phase()     — BB + RSI mean reversion scoring, sizing, margin guard
+    _guard_phase()      — pre-trade checks (session, caps, cooldown, OANDA,
+                          weekend close, news filter)
+    _signal_phase()     — BB + RSI scoring, sizing, margin guard
     _execution_phase()  — order placement and history persistence
+
+  Two-step trailing breakeven runs in management slot of every cycle
+  (see check_breakeven). Weekend force-close runs on Fridays from
+  weekend_close_hour_sgt SGT (see force_close_for_weekend).
 
 State isolation:
   Trade history (trade_history.json) is shared; queries filter by "instrument".
   Signal cache, ops state, and cooldown state are per-pair files, e.g.:
-    score_cache_gbpusd.json / ops_state_gbpusd.json / runtime_pair_gbpusd.json
+    score_cache_eurgbp.json / ops_state_eurgbp.json / runtime_pair_eurgbp.json
+    score_cache_audusd.json / ops_state_audusd.json / runtime_pair_audusd.json
+  Cross-pair dedup (e.g. session-open card) uses ops_state_global.json.
 """
 
 import json
@@ -132,7 +145,7 @@ def _pip_size(settings: dict) -> float:
 def _pip_dp(pip: float) -> int:
     """Decimal places for price rounding given pip size."""
     if pip <= 0.0001: return 5   # EUR_GBP (Zen)
-    if pip <= 0.01:   return 3   # JPY pairs (not used in Zen Scalp v1.7.1)
+    if pip <= 0.01:   return 3   # JPY pairs (not used in Zen Scalp v1.7.3)
     return 2
 
 
@@ -194,7 +207,7 @@ def _signal_payload(**kwargs):
 # ── Settings ──────────────────────────────────────────────────────────────────
 
 def validate_settings(settings: dict) -> dict:
-    required = ["pairs"]  # Zen Scalp v1.7.1: pair_sl_tp fixed pips used exclusively
+    required = ["pairs"]  # Zen Scalp v1.7.3: pair_sl_tp fixed pips used exclusively
     missing  = [k for k in required if k not in settings]
     if missing:
         raise ValueError(f"Missing required settings keys: {missing}")
@@ -1052,15 +1065,6 @@ def backfill_pnl(history: list, trader, alert, settings: dict,
 
 def log_event(code: str, message: str, level: str = "info", **extra):
     getattr(log, level, log.info)(f"[{code}] {message}", extra={"event": code, **extra})
-
-
-def _next_day_reset_sgt(now_sgt: datetime, day_start_hour: int = 8) -> str:
-    if now_sgt.hour < day_start_hour:
-        reset = now_sgt.replace(hour=day_start_hour, minute=0, second=0, microsecond=0)
-    else:
-        reset = (now_sgt + timedelta(days=1)).replace(
-            hour=day_start_hour, minute=0, second=0, microsecond=0)
-    return reset.strftime("%Y-%m-%d %H:%M SGT")
 
 
 # ── Guard phase ────────────────────────────────────────────────────────────────
