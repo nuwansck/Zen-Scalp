@@ -1,4 +1,4 @@
-"""Telegram message templates for Zen Scalp v1.7.3
+"""Telegram message templates for Zen Scalp v1.8
 AtomicFX-style: clean, state-change only, minimal noise.
 """
 from __future__ import annotations
@@ -36,7 +36,7 @@ def _split_banner(banner: str) -> tuple[str, str]:
     """Extract pair from banner.
     Handles both:
       '🇬🇧 LONDON [EUR/GBP + AUD/USD]'  → ('🇬🇧 LONDON [EUR/GBP + AUD/USD]', 'EUR/GBP + AUD/USD')
-      'Zen Scalp v1.7.3 | EUR/GBP + AUD/USD' → ('Zen Scalp v1.7.3', 'EUR/GBP + AUD/USD')
+      'Zen Scalp v1.8 | EUR/GBP + AUD/USD' → ('Zen Scalp v1.8', 'EUR/GBP + AUD/USD')
     """
     if "[" in banner and "]" in banner:
         pair = banner[banner.index("[")+1 : banner.index("]")]
@@ -325,11 +325,12 @@ def msg_spread_skip(banner, session_label, spread_pips, limit_pips) -> str:
 
 def msg_order_failed(direction, instrument, units, error,
                      free_margin=None, required_margin=None, retry_attempted=False) -> str:
+    pair  = instrument.replace("_", "/")
     mline = (f"Margin: free=${free_margin:.2f}  req=${required_margin:.2f}\n"
              if free_margin is not None and required_margin is not None else "")
     return (
         f"❌ Order Failed\n{_DIV}\n"
-        f"{direction}  {instrument}  {int(units):,} units\n"
+        f"{direction}  {pair}  {int(units):,} units\n"
         f"Error:  {error}\n"
         f"{mline}"
         f"Retry:  {'attempted' if retry_attempted else 'not attempted'}\n"
@@ -341,10 +342,11 @@ def msg_order_failed(direction, instrument, units, error,
 
 def msg_margin_adjustment(instrument, requested_units, adjusted_units,
                           free_margin, required_margin, reason) -> str:
+    pair   = instrument.replace("_", "/")
     action = "Skipping trade" if adjusted_units <= 0 else "Using smaller size"
     return (
         f"⚠️  Margin Protection\n{_DIV}\n"
-        f"Pair:      {instrument}\n"
+        f"Pair:      {pair}\n"
         f"Requested: {int(requested_units):,}\n"
         f"Adjusted:  {int(adjusted_units):,}\n"
         f"Free Mgn:  ${free_margin:.2f}\n"
@@ -368,6 +370,28 @@ def msg_friday_cutoff(cutoff_hour_sgt) -> str:
         f"📅 Friday Cutoff\n{_DIV}\n"
         f"After {cutoff_hour_sgt:02d}:00 SGT — no new entries\n"
         f"Resuming Monday 16:00 SGT"
+    )
+
+
+def msg_trading_window_closed(closed_session: str, next_session: str,
+                               next_session_hours: str) -> str:
+    """Combined session-end card (v1.8+).
+
+    Fires once when transitioning from any active session to "outside all
+    sessions". Replaces the previous per-pair `[EUR_GBP] Outside session.`
+    spam (which fired every 5-min cycle, twice — once per pair).
+
+    Uses send_once_global() with a date-keyed transition key so it fires
+    exactly once per session-end per day.
+    """
+    closed_icon = _session_icon(closed_session)
+    next_icon = _session_icon(next_session)
+    return (
+        f"🌙 Trading Window Closed\n{_DIV}\n"
+        f"{closed_icon} {closed_session} session closed\n"
+        f"EUR/GBP and AUD/USD scanning paused\n"
+        f"{_DIV}\n"
+        f"Next: {next_icon} {next_session}  {next_session_hours} SGT"
     )
 
 
@@ -427,10 +451,10 @@ def msg_startup(
         f"  ✈️  {dead_zone_start:02d}:00–{dead_zone_end:02d}:59  Dead zone\n"
         f"  🗼 {tokyo_start:02d}:00–{tokyo_end:02d}:59  Tokyo      cap {max_trades_tokyo}  score≥{tok_thr}\n"
         f"  🇬🇧 {london_start:02d}:00–{london_end:02d}:59  London     cap {max_trades_london}  score≥{lon_thr}\n"
-        + ("  🚫 US session   disabled\n" if us_start >= 99 else
-           f"  🗽 {us_start:02d}:00–{us_end:02d}:59  US         cap {max_trades_us}  score≥{us_thr}\n")
-        + ("  🚫 US cont.    disabled\n" if us_early_end >= 99 else
-           f"  🗽 00:00–{us_early_end:02d}:59  US cont.   cap {max_trades_us}  score≥{us_thr}\n")
+        + ("  🇺🇸 21:00–23:59  US (disabled)\n" if us_start >= 99 else
+           f"  🇺🇸 {us_start:02d}:00–{us_end:02d}:59  US         cap {max_trades_us}  score≥{us_thr}\n")
+        + ("  🌙 00:00–03:59  US-cont (disabled)\n" if us_early_end >= 99 else
+           f"  🌙 00:00–{us_early_end:02d}:59  US cont.   cap {max_trades_us}  score≥{us_thr}\n")
         + f"{_DIV}\n"
         + f"Day reset: {trading_day_start_hour:02d}:00 SGT  |  Loss cap: {max_losing_day}/day\n"
         f"Global cap: {max_total_open} open trades"

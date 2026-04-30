@@ -2,6 +2,146 @@
 
 ---
 
+## v1.8.0 — 2026-04-30
+
+**UX milestone release.** Three Telegram polish items, no strategy changes.
+First version where the chat experience matches the code quality. Marks the
+end of the post-v1.7 cleanup arc — next releases should be data-driven,
+not hygiene-driven.
+
+### What changed
+
+#### 1. Combined "Trading Window Closed" card
+
+**Before (v1.7.x):** when London or Tokyo session ended, both pair cycles
+independently sent `⏸️ [EUR_GBP] Outside session.` and `⏸️ [AUD_USD]
+Outside session.` — two messages per transition. The dedup was per-pair,
+so each pair fired its own card.
+
+**Now (v1.8):** single combined card per transition, sent globally:
+
+```
+🌙 Trading Window Closed
+──────────────────────
+🇬🇧 London Window session closed
+EUR/GBP and AUD/USD scanning paused
+──────────────────────
+Next: 🗼 Tokyo  08:00 next day SGT
+```
+
+**Implementation:** new `msg_trading_window_closed()` template; replaces
+the per-pair `send_once_per_state` call with `send_once_global` (same
+pattern v1.7 used for the session-open card duplicate fix). Card fires
+exactly once per session-end-per-day, then the bot stays silent until
+the next session opens.
+
+Result: ~336 outside-session notifications per night → ~1 per night.
+
+#### 2. Pretty pair names in user-facing strings
+
+User-facing Telegram alerts now display pairs as **`EUR/GBP`** and
+**`AUD/USD`** (slash format) instead of the OANDA-native `EUR_GBP` /
+`AUD_USD` underscore format. Applied to ALL Telegram templates, including
+error templates (`msg_order_failed`, `msg_margin_adjustment`).
+
+**Internal log lines and database rows still use the OANDA underscore
+format** — those are programmatic identifiers, not user-facing display.
+Reports stay machine-parseable. Clean separation:
+
+| Surface | Format |
+|---|---|
+| Telegram messages | `EUR/GBP` slash |
+| Log lines | `EUR_GBP` underscore (matches OANDA API) |
+| Database rows | `EUR_GBP` underscore (queryable) |
+| Trade history JSON | `EUR_GBP` underscore (machine-parseable) |
+
+**Implementation:** new `_pretty_pair(instrument)` helper in bot.py.
+Applied at 12 user-facing call sites in bot.py. Templates that receive
+raw `instrument` strings (`msg_order_failed`, `msg_margin_adjustment`,
+`msg_weekend_close`, `msg_session_open_multi`) format internally with
+`.replace("_", "/")`. Log lines (4 sites in bot.py) deliberately left
+as-is.
+
+#### 3. US session label clarity
+
+Startup card sessions block updated. Old version had two ambiguous lines
+that looked nearly identical:
+
+```
+🚫 US session   disabled
+🚫 US cont.    disabled
+```
+
+New version uses distinct icons and always shows hours, even when disabled:
+
+```
+🇺🇸 21:00–23:59  US (disabled)
+🌙 00:00–03:59  US-cont (disabled)
+```
+
+When/if either window is enabled in the future, the icons remain (icons
+indicate the session, hours show the window).
+
+### Files changed
+
+```
+bot.py                  — _pretty_pair helper added; 12 user-facing sites
+                          updated; outside-session block rewritten to
+                          use send_once_global + msg_trading_window_closed
+telegram_templates.py   — new msg_trading_window_closed template;
+                          msg_startup US-session lines updated
+settings.json           — bot_name → "Zen Scalp v1.8"
+version.py              — 1.7.3 → 1.8.0
+README.md, SETTINGS.md, CONFLUENCE_READY.md, CHANGELOG.md — version bumps
+                          and this entry
+```
+
+### Verification
+
+- All 16 Python files compile cleanly.
+- `pyflakes *.py` returns 0 warnings (preserves v1.7.3's clean state).
+- All JSON files valid.
+- `_pretty_pair("EUR_GBP") == "EUR/GBP"` ✓
+- `_pretty_pair("AUD_USD") == "AUD/USD"` ✓
+- Startup card renders correctly with new US session lines.
+- Trading-window-closed template renders correctly for both
+  London → Tokyo and Tokyo → London transitions.
+
+### What this release does NOT change
+
+- TP/SL/BE values per pair — same as v1.7
+- Two-step breakeven logic — unchanged
+- Weekend close — unchanged (still 🌙 emoji; semantically distinct from
+  the new 🌙 trading-window-closed since they fire in different contexts
+  and contain different message content)
+- Strategy / scoring / execution / signal engine — unchanged
+- Reports, reconciliation, telemetry — unchanged
+
+### What to expect after deploy
+
+Tonight at session-end (London closes 20:59 SGT), instead of two
+`⏸️ [EUR_GBP] Outside session.` / `⏸️ [AUD_USD] Outside session.`
+messages flooding the chat every 5 minutes for the next 11 hours, you'll
+see **one** clean "Trading Window Closed" card around 21:00 SGT, then
+silence until Tokyo opens at 08:00 SGT next morning.
+
+### Strategy review note
+
+This release closes the v1.6→v1.8 architectural arc:
+
+| Version | Focus | Status |
+|---|---|---|
+| v1.6   | Maintenance | ✅ Done |
+| v1.6.1 | Weekend protection | ✅ Done |
+| v1.7   | Strategy: per-pair split + 2-step BE | ✅ Done, monitoring |
+| v1.7.x | Three cleanup passes, pyflakes 0 | ✅ Done |
+| **v1.8** | **UX polish, milestone release** | **✅ Done** |
+
+Next release should be **strategy-driven** (data review at ~30 trades,
+parameter tuning if needed, or v2.0 refactor).
+
+---
+
 ## v1.7.3 — 2026-04-29
 
 **Polish pass.** Pyflakes is now 100% clean (was 9 stylistic warnings).

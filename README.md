@@ -1,4 +1,4 @@
-# Zen Scalp v1.7.3 — EUR/GBP + AUD/USD M15 Mean Reversion Bot
+# Zen Scalp v1.8 — EUR/GBP + AUD/USD M15 Mean Reversion Bot
 
 > **Deployed on Railway · OANDA API · Telegram Alerts**
 
@@ -100,15 +100,7 @@ data review.
 
 ---
 
-## Sessions (SGT = UTC+8)
-
-```
-✈️  04:00–07:59  Dead zone       No entries · BE / SL management active
-🗼 08:00–15:59  Asian           score ≥4  cap 6  ← PRIMARY
-🇬🇧 16:00–20:59  London          score ≥4  cap 6  ← SECONDARY
-🚫 21:00–00:59  US + US cont    DISABLED (trending hours)
-🌙 Fri 22:00 SGT  Weekend close   Force-closes ALL open positions (gap protection)
-```
+# Zen Scalp v1.8 — EUR/GBP + AUD/USD M15 Mean Reversion Bot
 
 Day reset: 08:00 SGT · Loss cap: 6/day · Global cap: 2 open trades (1 per pair).
 

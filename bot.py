@@ -1,4 +1,4 @@
-"""Main orchestrator for Zen Scalp v1.7.3 — EUR/GBP + AUD/USD M15 BB+RSI Mean Reversion
+"""Main orchestrator for Zen Scalp v1.8 — EUR/GBP + AUD/USD M15 BB+RSI Mean Reversion
 
 Dual-pair (EUR/GBP + AUD/USD) M15 mean-reversion bot using Bollinger Bands + RSI
 + CPR pivot bias. Asian-session primary; London secondary.
@@ -58,7 +58,7 @@ from telegram_templates import (
     msg_signal_update, msg_trade_opened, msg_breakeven, msg_trade_closed,
     msg_news_block, msg_news_penalty, msg_cooldown_started,
     msg_spread_skip, msg_order_failed, msg_error, msg_friday_cutoff,
-    msg_weekend_close,
+    msg_weekend_close, msg_trading_window_closed,
     msg_margin_adjustment,
     msg_session_open_multi,
 )
@@ -122,8 +122,17 @@ def get_effective_settings(global_s: dict, pair_cfg: dict) -> dict:
 
 
 def _pair_key(instrument: str) -> str:
-    """'EUR_GBP' → 'gbpusd'  (used as file-name suffix)."""
+    """'EUR_GBP' → 'eurgbp', 'AUD_USD' → 'audusd' (used as file-name suffix)."""
     return instrument.lower().replace("_", "")
+
+
+def _pretty_pair(instrument: str) -> str:
+    """Format pair for user-facing strings: 'EUR_GBP' → 'EUR/GBP'.
+
+    Used in Telegram alerts. Log lines and DB rows keep the OANDA-native
+    underscore format (EUR_GBP) since those are programmatic.
+    """
+    return instrument.replace("_", "/")
 
 
 def _pair_state_file(base: Path, instrument: str) -> Path:
@@ -145,7 +154,7 @@ def _pip_size(settings: dict) -> float:
 def _pip_dp(pip: float) -> int:
     """Decimal places for price rounding given pip size."""
     if pip <= 0.0001: return 5   # EUR_GBP (Zen)
-    if pip <= 0.01:   return 3   # JPY pairs (not used in Zen Scalp v1.7.3)
+    if pip <= 0.01:   return 3   # JPY pairs (not used in Zen Scalp v1.8)
     return 2
 
 
@@ -207,7 +216,7 @@ def _signal_payload(**kwargs):
 # ── Settings ──────────────────────────────────────────────────────────────────
 
 def validate_settings(settings: dict) -> dict:
-    required = ["pairs"]  # Zen Scalp v1.7.3: pair_sl_tp fixed pips used exclusively
+    required = ["pairs"]  # Zen Scalp v1.8: pair_sl_tp fixed pips used exclusively
     missing  = [k for k in required if k not in settings]
     if missing:
         raise ValueError(f"Missing required settings keys: {missing}")
@@ -1193,9 +1202,30 @@ def _guard_phase(db, run_id, settings, alert, history, now_sgt, today, demo,
             else:
                 log.info("[%s] Outside all sessions.", instrument,
                          extra={"run_id": run_id})
+            # v1.8: combined "Trading Window Closed" card sent ONCE per
+            # session-end transition, globally (not per-pair). Was previously
+            # firing twice (once per pair) at every session-end.
             if ops.get("last_session") is not None:
-                send_once_per_state(alert, ops, "ops_state", "outside_session",
-                                    f"⏸️ [{instrument}] Outside session.", instrument)
+                _last_sess = ops.get("last_session")
+                # Determine next session for the card
+                _tok_s = int(settings.get("tokyo_session_start_hour", 8))
+                _lon_s = int(settings.get("london_session_start_hour", 16))
+                if _last_sess and "London" in _last_sess:
+                    _next_name, _next_hours = "Tokyo", f"{_tok_s:02d}:00 next day"
+                elif _last_sess and "Tokyo" in _last_sess:
+                    _next_name, _next_hours = "London", f"{_lon_s:02d}:00"
+                else:
+                    _next_name, _next_hours = "Tokyo", f"{_tok_s:02d}:00"
+                send_once_global(
+                    alert,
+                    "trading_window_closed",
+                    f"window_closed:{_last_sess}:{today}",
+                    msg_trading_window_closed(
+                        closed_session=_last_sess or "Trading",
+                        next_session=_next_name,
+                        next_session_hours=_next_hours,
+                    ),
+                )
                 ops["last_session"] = None
                 save_ops_state(ops, instrument)
             update_runtime_state(last_cycle_finished=now_sgt.strftime("%Y-%m-%d %H:%M:%S"),
@@ -1210,7 +1240,7 @@ def _guard_phase(db, run_id, settings, alert, history, now_sgt, today, demo,
         threshold = int(settings.get("signal_threshold", 4))
 
     threshold = threshold or int(settings.get("signal_threshold", 4))
-    banner    = SESSION_BANNERS.get(macro, "📊") + f" [{instrument.replace('_', '/')}]"
+    banner    = SESSION_BANNERS.get(macro, "📊") + f" [{_pretty_pair(instrument)}]"
     log.info("[%s] Session: %s (%s)", instrument, session, macro,
              extra={"run_id": run_id})
 
@@ -1302,7 +1332,7 @@ def _guard_phase(db, run_id, settings, alert, history, now_sgt, today, demo,
 
     _max_day_losses = int(settings.get("max_losing_trades_day", 8))
     if _max_day_losses > 0 and _dl_pre >= _max_day_losses:
-        msg = (f"🛑 [{instrument}] Daily loss cap ({_dl_pre}/{_max_day_losses}) — "
+        msg = (f"🛑 [{_pretty_pair(instrument)}] Daily loss cap ({_dl_pre}/{_max_day_losses}) — "
                f"no new entries today.")
         send_once_per_state(alert, ops, "ops_state",
                             f"day_loss_cap:{today}:{_dl_pre}", msg, instrument)
@@ -1315,7 +1345,7 @@ def _guard_phase(db, run_id, settings, alert, history, now_sgt, today, demo,
 
     _max_day_trades = int(settings.get("max_trades_day", 20))
     if _max_day_trades > 0 and _dt_pre >= _max_day_trades:
-        msg = (f"🛑 [{instrument}] Daily trade cap ({_dt_pre}/{_max_day_trades}) — "
+        msg = (f"🛑 [{_pretty_pair(instrument)}] Daily trade cap ({_dt_pre}/{_max_day_trades}) — "
                f"no new entries today.")
         send_once_per_state(alert, ops, "ops_state",
                             f"day_trade_cap:{today}:{_dt_pre}", msg, instrument)
@@ -1331,7 +1361,7 @@ def _guard_phase(db, run_id, settings, alert, history, now_sgt, today, demo,
     if _window_key and _window_cap is not None:
         _wt = window_trade_count(history, today, _window_key, instrument)
         if _wt >= _window_cap:
-            msg = (f"⏸️ [{instrument}] {session} cap ({_wt}/{_window_cap}) — "
+            msg = (f"⏸️ [{_pretty_pair(instrument)}] {session} cap ({_wt}/{_window_cap}) — "
                    f"no more entries this window.")
             send_once_per_state(alert, ops, "window_cap_state",
                                 f"window_cap:{_window_key}:{today}:{_wt}",
@@ -1348,7 +1378,7 @@ def _guard_phase(db, run_id, settings, alert, history, now_sgt, today, demo,
         _sl_cap  = int(settings.get("max_losing_trades_session", 4))
         _sl_sess = session_losses(history, today, macro, instrument)
         if _sl_cap > 0 and _sl_sess >= _sl_cap:
-            msg = (f"🛑 [{instrument}] {session or macro} session loss cap "
+            msg = (f"🛑 [{_pretty_pair(instrument)}] {session or macro} session loss cap "
                    f"({_sl_sess}/{_sl_cap}) — no more entries.")
             send_once_per_state(alert, ops, "session_loss_cap_state",
                                 f"sess_loss_cap:{macro}:{today}:{_sl_sess}",
@@ -1430,7 +1460,7 @@ def _guard_phase(db, run_id, settings, alert, history, now_sgt, today, demo,
                     (_sl_gap_min * 60 - (now_sgt - _last_sl_dt).total_seconds()) // 60))
                 send_once_per_state(
                     alert, ops, "sl_reentry_state", f"sl_gap:{_last_sl_at}",
-                    f"⏳ [{instrument}] SL cooldown — {_rem} more min.",
+                    f"⏳ [{_pretty_pair(instrument)}] SL cooldown — {_rem} more min.",
                     instrument)
                 update_runtime_state(
                     last_cycle_finished=now_sgt.strftime("%Y-%m-%d %H:%M:%S"),
@@ -1449,7 +1479,7 @@ def _guard_phase(db, run_id, settings, alert, history, now_sgt, today, demo,
         send_once_per_state(
             alert, ops, "cooldown_guard_state",
             f"cooldown:{cooldown_until.strftime('%Y-%m-%d %H:%M:%S')}",
-            f"🧊 [{instrument}] Cooldown — {rem} more min.", instrument)
+            f"🧊 [{_pretty_pair(instrument)}] Cooldown — {rem} more min.", instrument)
         update_runtime_state(last_cycle_finished=now_sgt.strftime("%Y-%m-%d %H:%M:%S"),
                              status="SKIPPED_COOLDOWN")
         db.finish_cycle(run_id, status="SKIPPED",
@@ -1462,7 +1492,7 @@ def _guard_phase(db, run_id, settings, alert, history, now_sgt, today, demo,
         send_once_per_state(
             alert, ops, "open_cap_state",
             f"open_cap:{open_count}:{max_concurrent}",
-            f"⏸️ [{instrument}] Max concurrent trades ({open_count}/{max_concurrent}).",
+            f"⏸️ [{_pretty_pair(instrument)}] Max concurrent trades ({open_count}/{max_concurrent}).",
             instrument)
         update_runtime_state(last_cycle_finished=now_sgt.strftime("%Y-%m-%d %H:%M:%S"),
                              status="SKIPPED_OPEN_TRADE_CAP")
@@ -1478,7 +1508,7 @@ def _guard_phase(db, run_id, settings, alert, history, now_sgt, today, demo,
             send_once_per_state(
                 alert, ops, "global_cap_state",
                 f"global_cap:{total_open}:{max_total}",
-                f"⏸️ [{instrument}] Global trade cap ({total_open}/{max_total} open across all pairs).",
+                f"⏸️ [{_pretty_pair(instrument)}] Global trade cap ({total_open}/{max_total} open across all pairs).",
                 instrument)
             update_runtime_state(last_cycle_finished=now_sgt.strftime("%Y-%m-%d %H:%M:%S"),
                                  status="SKIPPED_GLOBAL_TRADE_CAP")
@@ -1616,7 +1646,7 @@ def _signal_phase(db, run_id, settings, alert, trader, history,
     tp_pct   = (tp_usd / entry * 100) if entry > 0 else None
 
     if units <= 0:
-        alert.send(msg_error(f"[{instrument}] Position size = 0",
+        alert.send(msg_error(f"[{_pretty_pair(instrument)}] Position size = 0",
                              f"position_usd=${position_usd} sl={sl_usd:.6f}"))
         db.finish_cycle(run_id, status="SKIPPED",
                         summary={"stage": "position_sizing", "reason": "zero_units",
@@ -1689,7 +1719,7 @@ def _signal_phase(db, run_id, settings, alert, trader, history,
              "session_ok": True, "news_ok": True,
              "open_trade_ok": True, "margin_ok": False})
         alert.send(msg_error(
-            f"[{instrument}] Insufficient margin",
+            f"[{_pretty_pair(instrument)}] Insufficient margin",
             f"free=${margin_available:.2f} "
             f"required=${float(margin_info.get('required_margin', 0)):.2f}"))
         db.finish_cycle(run_id, status="SKIPPED",
@@ -1711,7 +1741,7 @@ def _signal_phase(db, run_id, settings, alert, trader, history,
              "session_ok": True, "news_ok": True,
              "open_trade_ok": True, "margin_ok": False})
         alert.send(msg_error(
-            f"[{instrument}] Units too small after margin guard",
+            f"[{_pretty_pair(instrument)}] Units too small after margin guard",
             f"adjusted={units:.0f} min={_min_units} free=${margin_available:.2f}"))
         db.finish_cycle(run_id, status="SKIPPED",
                         summary={"stage": "margin_cap",
@@ -1728,7 +1758,7 @@ def _signal_phase(db, run_id, settings, alert, trader, history,
     # ── Spread guard ──────────────────────────────────────────────────────────
     mid, bid, ask = trader.get_price(instrument)
     if mid is None:
-        alert.send(msg_error(f"[{instrument}] Cannot fetch price", "OANDA returned None"))
+        alert.send(msg_error(f"[{_pretty_pair(instrument)}] Cannot fetch price", "OANDA returned None"))
         db.finish_cycle(run_id, status="FAILED",
                         summary={"stage": "pricing", "instrument": instrument})
         update_runtime_state(last_cycle_finished=now_sgt.strftime("%Y-%m-%d %H:%M:%S"),
