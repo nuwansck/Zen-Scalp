@@ -75,7 +75,7 @@
   "account_balance_override": 0,
   "trading_day_start_hour_sgt": 8,
   "min_rr_ratio": 1.4,
-  "cycle_minutes": 5,
+  "cycle_minutes": 3,
   "db_retention_days": 90,
   "db_cleanup_hour_sgt": 0,
   "db_cleanup_minute_sgt": 15,
