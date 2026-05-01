@@ -1,5 +1,5 @@
 {
-  "bot_name": "Zen Scalp v1.8",
+  "bot_name": "Zen Scalp v1.9",
   "demo_mode": true,
   "enabled": true,
   "_comment_pairs": "Per-pair settings override any matching global key for that pair's cycle.",
@@ -106,7 +106,7 @@
     "EUR_GBP": {
       "sl_pips": 20,
       "tp_pips": 30,
-      "pip_value_usd": 11.0,
+      "pip_value_usd": 13.5,
       "be_trigger_pips": 15,
       "be_lock_pips": 3,
       "be_step2_trigger_pips": 25,

@@ -1,4 +1,4 @@
-# Zen Scalp v1.8 — Settings Reference
+# Zen Scalp v1.9 — Settings Reference
 
 ---
 
@@ -6,7 +6,7 @@
 
 | Key | Value |
 |---|---|
-| `bot_name` | `"Zen Scalp v1.8"` |
+| `bot_name` | `"Zen Scalp v1.9"` |
 | `demo_mode` | `true` |
 
 ---
@@ -28,7 +28,7 @@
 
 | Pair | sl_pips | tp_pips | pip_value_usd | be_trigger_pips | be_lock_pips | be_step2_trigger_pips | be_step2_lock_pips |
 |---|---|---|---|---|---|---|---|
-| EUR/GBP | 20 | 30 | 11.0 (GBP-quoted) | 15 | 3 | 25 | 13 |
+| EUR/GBP | 20 | 30 | 13.5 (GBP-quoted, updated v1.9) | 15 | 3 | 25 | 13 |
 | AUD/USD | **15** | **22** | 10.0 (USD-quoted) | **11** | 3 | **18** | **10** |
 
 **RR:** EUR/GBP 1.5× · AUD/USD 1.47×
@@ -154,6 +154,15 @@ be > Step 1 lock. Invalid configs auto-disable Step 2 with a warning.
 | `db_cleanup_hour_sgt` | `0:15` |
 | `db_vacuum_weekly` | `true` |
 | `cycle_minutes` | `5` |
+
+---
+
+## pip_value_usd maintenance (v1.9+)
+
+`pip_value_usd` for EUR/GBP is a static approximation of the GBP→USD conversion
+factor (`pip_value_per_pip × USD_per_GBP / 100,000`). Set to **13.5** for
+GBP/USD ≈ 1.35 (May 2026). Review and update when GBP/USD moves ±0.10 from
+the last set value. AUD/USD is always exactly 10.0 (USD-quoted — no drift possible).
 
 ---
 

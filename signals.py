@@ -1,4 +1,4 @@
-"""Signal engine for Bollinger Band + RSI mean reversion — Zen Scalp v1.8
+"""Signal engine for Bollinger Band + RSI mean reversion — Zen Scalp v1.9
 
 Strategy: Mean Reversion using Bollinger Bands (20, 2σ) + RSI (14)
 Pairs:     EUR_GBP, AUD_USD
@@ -251,9 +251,14 @@ class SignalEngine:
         # tp_price_dist in the levels dict. We must inject them here.
         _sl_pips     = int(pair_cfg.get("sl_pips", 20))
         _tp_pips     = int(pair_cfg.get("tp_pips", 30))
-        _pip_val_usd = float(pair_cfg.get("pip_value_usd", 10.0))
+        _pip_val_usd = float(pair_cfg.get("pip_value_usd", 10.0))  # EUR/GBP: 13.5 (GBP-quoted); AUD/USD: 10.0 (exact)
         _pip_usd_unit = _pip_val_usd / 100_000   # $ per unit per pip
 
+        # sl_price_dist / tp_price_dist — raw price distances (pip × pip_size).
+        # Used by bot.py for OANDA order price levels and stop_pips/tp_pips counts.
+        # sl_usd_rec / tp_usd_rec — true USD risk via pip_value_usd.
+        # For GBP-quoted EUR/GBP, price_dist is in GBP; usd_rec converts correctly.
+        # bot.py sizing uses sl_usd_rec (not sl_price_dist) to avoid GBP/USD error.
         sl_price_dist = round(_sl_pips * pip_size, dp + 2)
         tp_price_dist = round(_tp_pips * pip_size, dp + 2)
         sl_usd_rec    = round(_sl_pips * _pip_usd_unit, dp + 2)

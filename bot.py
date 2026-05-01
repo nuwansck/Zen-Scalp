@@ -1,4 +1,4 @@
-"""Main orchestrator for Zen Scalp v1.8 — EUR/GBP + AUD/USD M15 BB+RSI Mean Reversion
+"""Main orchestrator for Zen Scalp v1.9 — EUR/GBP + AUD/USD M15 BB+RSI Mean Reversion
 
 Dual-pair (EUR/GBP + AUD/USD) M15 mean-reversion bot using Bollinger Bands + RSI
 + CPR pivot bias. Asian-session primary; London secondary.
@@ -154,7 +154,7 @@ def _pip_size(settings: dict) -> float:
 def _pip_dp(pip: float) -> int:
     """Decimal places for price rounding given pip size."""
     if pip <= 0.0001: return 5   # EUR_GBP (Zen)
-    if pip <= 0.01:   return 3   # JPY pairs (not used in Zen Scalp v1.8)
+    if pip <= 0.01:   return 3   # JPY pairs (not used in Zen Scalp v1.9)
     return 2
 
 
@@ -216,7 +216,7 @@ def _signal_payload(**kwargs):
 # ── Settings ──────────────────────────────────────────────────────────────────
 
 def validate_settings(settings: dict) -> dict:
-    required = ["pairs"]  # Zen Scalp v1.8: pair_sl_tp fixed pips used exclusively
+    required = ["pairs"]  # Zen Scalp v1.9: pair_sl_tp fixed pips used exclusively
     missing  = [k for k in required if k not in settings]
     if missing:
         raise ValueError(f"Missing required settings keys: {missing}")
@@ -297,7 +297,7 @@ def validate_settings(settings: dict) -> dict:
     settings.setdefault("min_trade_units",           1000)
     # EUR/GBP + AUD/USD only
     settings.setdefault("pair_sl_tp", {
-        "EUR_GBP": {"sl_pips": 20, "tp_pips": 30, "pip_value_usd": 11.0,
+        "EUR_GBP": {"sl_pips": 20, "tp_pips": 30, "pip_value_usd": 13.5,
                     "be_trigger_pips": 15, "be_lock_pips": 3,
                     "be_step2_trigger_pips": 25, "be_step2_lock_pips": 13},
         "AUD_USD": {"sl_pips": 15, "tp_pips": 22, "pip_value_usd": 10.0,
@@ -603,7 +603,12 @@ def derive_rr_ratio(levels: dict, sl_usd: float, tp_usd: float, settings: dict) 
 
 
 def calculate_units_from_position(position_usd: int, sl_usd: float) -> float:
-    """units = position_usd / sl_price_distance. Exact USD risk for EUR/GBP + AUD/USD."""
+    """units = position_usd / sl_usd_rec (USD-adjusted risk per unit).
+
+    sl_usd_rec from signals.py already applies pip_value_usd for GBP-quoted
+    pairs (EUR/GBP), giving true USD risk. AUD/USD is USD-quoted so sl_usd_rec
+    and sl_price_dist are numerically equivalent.
+    """
     if sl_usd <= 0 or position_usd <= 0:
         return 0.0
     return round(position_usd / sl_usd, 2)
@@ -1639,11 +1644,18 @@ def _signal_phase(db, run_id, settings, alert, trader, history,
         _, _, ask = trader.get_price(instrument)
         entry = ask or 0
 
-    sl_usd   = compute_sl_usd(levels, settings)
-    tp_usd   = compute_tp_usd(levels, sl_usd, settings)
+    # sl_price_dist — raw price distance (e.g. 0.0020 for EUR/GBP 20p).
+    # Used for pip counting and OANDA order price levels only.
+    # sl_usd / tp_usd — true USD value via pip_value_usd from pair_sl_tp.
+    # For GBP-quoted EUR/GBP, sl_price_dist is in GBP; sl_usd_rec converts
+    # to USD using pip_value_usd. Always use sl_usd for sizing.
+    sl_price_dist = compute_sl_usd(levels, settings)
+    tp_price_dist = compute_tp_usd(levels, sl_price_dist, settings)
+    sl_usd   = float(levels.get("sl_usd_rec") or sl_price_dist)
+    tp_usd   = float(levels.get("tp_usd_rec") or tp_price_dist)
     rr_ratio = derive_rr_ratio(levels, sl_usd, tp_usd, settings)
     units    = calculate_units_from_position(position_usd, sl_usd)
-    tp_pct   = (tp_usd / entry * 100) if entry > 0 else None
+    tp_pct   = (tp_price_dist / entry * 100) if entry > 0 else None
 
     if units <= 0:
         alert.send(msg_error(f"[{_pretty_pair(instrument)}] Position size = 0",
@@ -1752,7 +1764,7 @@ def _signal_phase(db, run_id, settings, alert, trader, history,
         return None
 
     # stop_pips / tp_pips must use this pair's pip_size for the OANDA order
-    stop_pips, tp_pips = compute_sl_tp_pips(sl_usd, tp_usd, pip)
+    stop_pips, tp_pips = compute_sl_tp_pips(sl_price_dist, tp_price_dist, pip)
     reward_usd = round(units * tp_usd, 6)
 
     # ── Spread guard ──────────────────────────────────────────────────────────
@@ -1796,7 +1808,8 @@ def _signal_phase(db, run_id, settings, alert, trader, history,
     ctx.update({
         "score": score, "raw_score": raw_score, "direction": direction,
         "details": details, "levels": levels, "position_usd": position_usd,
-        "entry": entry, "sl_usd": sl_usd, "tp_usd": tp_usd,
+        "entry": entry, "sl_price_dist": sl_price_dist, "tp_price_dist": tp_price_dist,
+        "sl_usd": sl_usd, "tp_usd": tp_usd,
         "rr_ratio": rr_ratio, "units": units,
         "stop_pips": stop_pips, "tp_pips": tp_pips,
         "reward_usd": reward_usd, "cpr_w": cpr_w,
@@ -1822,6 +1835,8 @@ def _execution_phase(db, run_id, settings, alert, trader, history,
     levels           = ctx["levels"]
     position_usd     = ctx["position_usd"]
     entry            = ctx["entry"]
+    sl_price_dist    = ctx["sl_price_dist"]
+    tp_price_dist    = ctx["tp_price_dist"]
     sl_usd           = ctx["sl_usd"]
     tp_usd           = ctx["tp_usd"]
     rr_ratio         = ctx["rr_ratio"]
@@ -1852,7 +1867,7 @@ def _execution_phase(db, run_id, settings, alert, trader, history,
                         summary={"stage": "dead_zone_hard_block", "instrument": instrument})
         return
 
-    sl_price, tp_price = compute_sl_tp_prices(entry, direction, sl_usd, tp_usd, dp)
+    sl_price, tp_price = compute_sl_tp_prices(entry, direction, sl_price_dist, tp_price_dist, dp)
 
     record = {
         "timestamp_sgt":        now_sgt.strftime("%Y-%m-%d %H:%M:%S"),
@@ -1950,10 +1965,10 @@ def _execution_phase(db, run_id, settings, alert, trader, history,
             ae                     = fill_price
             record["entry"]        = round(ae, dp)
             record["signal_entry"] = round(entry, dp)
-            record["sl_price"]     = round(ae - sl_usd if direction == "BUY"
-                                           else ae + sl_usd, dp)
-            record["tp_price"]     = round(ae + tp_usd if direction == "BUY"
-                                           else ae - tp_usd, dp)
+            record["sl_price"]     = round(ae - sl_price_dist if direction == "BUY"
+                                           else ae + sl_price_dist, dp)
+            record["tp_price"]     = round(ae + tp_price_dist if direction == "BUY"
+                                           else ae - tp_price_dist, dp)
 
         alert.send(msg_trade_opened(
             banner=banner, direction=direction, setup=levels.get("setup", ""),

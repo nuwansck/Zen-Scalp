@@ -1,6 +1,6 @@
-# Zen Scalp v1.8 — Technical Specification
+# Zen Scalp v1.9 — Technical Specification
 
-**Bot:** Zen Scalp v1.8   **Pairs:** EUR/GBP + AUD/USD   **Exchange:** OANDA (demo)
+**Bot:** Zen Scalp v1.9   **Pairs:** EUR/GBP + AUD/USD   **Exchange:** OANDA (demo)
 **Platform:** Railway (Singapore)   **Timeframe:** M15   **Cycle:** 5 min
 
 ---
@@ -149,7 +149,7 @@ Trading day reset: 08:00 SGT. Loss cap: 6/day. Friday entry cutoff: 23:00 SGT.
 | 4 | $45 partial | ~$1.36 | ~$1.50 |
 | 5–6 | $60 full | ~$1.82 | ~$2.00 |
 
-`pip_value`: EUR/GBP = $11.00 (GBP-quoted) · AUD/USD = $10.00 (USD-quoted)
+`pip_value`: EUR/GBP = $13.50 (GBP-quoted) · AUD/USD = $10.00 (USD-quoted)
 
 **Per-pair SL/TP/BE (v1.7 split):**
 
@@ -226,7 +226,7 @@ of `trade_history.json` to Telegram every Monday 08:20 SGT.
 |---|---|---|
 | v1.0 | 2026-04-17 | Initial release. EUR/GBP + AUD/USD, BB+RSI signal engine. |
 | v1.1 | 2026-04-17 | Fixed healthcheck crash. Combined session card. BB+RSI text. |
-| v1.2 | 2026-04-17 | SL/TP injection fix (18p → 20p). EUR/GBP pip_value 11.0. AUD_USD defaults. |
+| v1.2 | 2026-04-17 | SL/TP injection fix (18p → 20p). EUR/GBP pip_value 13.5. AUD_USD defaults. |
 | v1.3 | 2026-04-17 | Full codebase cleanup. All stale refs removed. Clean docs. |
 | v1.4 | 2026-04-17 | `max_trades_tokyo` set to 6 — matches London cap. Tokyo cap fixed on startup card. |
 | v1.5 | 2026-04-18 | **BE enabled** with configurable `be_lock_pips`. Fixed `modify_sl` precision bug (`:.2f` → `displayPrecision`). |
@@ -234,4 +234,4 @@ of `trade_history.json` to Telegram every Monday 08:20 SGT.
 | v1.6.1 | 2026-04-28 | Weekend gap-risk protection. New `force_close_for_weekend()` runs every cycle on Friday from 22:00 SGT, force-closes all open positions via OANDA position-close API. Independent of `friday_cutoff` (which only blocks new entries). Configurable via `weekend_close_enabled/_hour_sgt/_minute_sgt`. New 🌙 Telegram alert template. No strategy changes. |
 | v1.7 | 2026-04-29 | Per-pair parameter split + Two-step trailing breakeven. EUR/GBP keeps TP30/SL20/BE15+3 unchanged (it works). AUD/USD reduced to TP22/SL15/BE11+3 (avg winner peak was +14.7p, doesn't justify TP30). Both pairs gain Step 2 BE: deeper profit lock when MFE continues past Step 1 trigger (EUR/GBP +25p→lock+13, AUD/USD +18p→lock+10). New `breakeven_step` field on trades (backward-compatible with `breakeven_moved`). Bug fix: session-open Telegram message dedup moved from per-pair to global state file (was firing twice every session start). |
 | v1.7.1–1.7.3 | 2026-04-29 | Three cleanup passes. Removed unused imports/locals (24→9 pyflakes), 4 orphan templates + 1 orphan helper, fixed 9 stylistic f-strings (9→0 pyflakes). Stale module docstrings (bot.py session schedule, reporting.py daily report time, database.py CPR→Zen, calendar_fetcher.py rewritten), `CPR GOLD BOT` performance header → ZEN SCALP, User-Agent CableScalp→ZenScalp. No functional changes across all three. |
-| **v1.8** | **2026-04-30** | **UX milestone release.** New combined `msg_trading_window_closed()` card replaces per-pair "Outside session" spam (was 2× per cycle every 5 min during 14-hr off-hours; now 1 card per transition globally). Pretty pair display: `EUR/GBP` / `AUD/USD` (slash) in user-facing strings — log lines and DB rows keep OANDA-native underscore format. US session disabled lines split with distinct icons (🇺🇸 vs 🌙) and always show hours for visual clarity. No strategy changes. |
+| **v1.9** | **2026-04-30** | **UX milestone release.** New combined `msg_trading_window_closed()` card replaces per-pair "Outside session" spam (was 2× per cycle every 5 min during 14-hr off-hours; now 1 card per transition globally). Pretty pair display: `EUR/GBP` / `AUD/USD` (slash) in user-facing strings — log lines and DB rows keep OANDA-native underscore format. US session disabled lines split with distinct icons (🇺🇸 vs 🌙) and always show hours for visual clarity. No strategy changes. |

@@ -191,7 +191,7 @@ def _parse_ff_event(event: dict) -> dict | None:
 
 def _fetch_ff_events(url: str, suppress_404: bool = False) -> tuple[list, int | None]:
     try:
-        r = requests.get(url, timeout=15, headers={"User-Agent": "ZenScalp/1.7"})
+        r = requests.get(url, timeout=15, headers={"User-Agent": "ZenScalp/1.9"})
         if r.status_code == 200:
             data = r.json()
             events = data if isinstance(data, list) else []

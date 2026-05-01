@@ -2,6 +2,131 @@
 
 ---
 
+## v1.9.0 — 2026-05-01
+
+**Critical sizing bug fix: EUR/GBP position size now correctly targets USD risk.**
+
+### Why
+
+Every EUR/GBP trade since launch has been sized with ~24% more risk than the
+configured `position_full_usd` / `position_partial_usd` targets. At GBP/USD ≈ 1.36
+(current rate), a $45 partial position was placing 22,500 units instead of the
+correct ~16,667 units, resulting in actual USD risk of ≈ $55.80 — nearly $11 over
+target per trade.
+
+**Root cause:** `compute_sl_usd()` returns a raw price distance
+(`sl_pips × pip_size` = e.g. `20 × 0.0001 = 0.0020`). For AUD/USD (USD-quoted)
+this is numerically equal to the USD cost per unit, so sizing was accidentally
+correct. For EUR/GBP (GBP-quoted), `0.0020` is a GBP distance — not USD. Dividing
+`position_usd / sl_price_dist` mixed units (USD ÷ GBP-equivalent), giving a unit
+count calibrated to GBP/USD ≈ 1.00, not the actual ~1.36.
+
+The `pip_value_usd` field in `pair_sl_tp` already computed the correct USD value
+(`sl_usd_rec = sl_pips × pip_value_usd / 100,000`) but `bot.py` was reading
+`sl_price_dist` (primary) instead of `sl_usd_rec` for position sizing.
+
+Identified via post-trade P&L back-calculation:
+- Trade 289 (EUR/GBP BUY, score 4 / $45 partial): 22,500 units → actual risk ≈ $55.76
+- Target: 16,667 units → actual risk ≈ $45.00
+
+### Changes
+
+**`bot.py` — `_signal_phase()` sizing block (critical fix)**
+
+Split `sl_usd` into two distinct variables with separate roles:
+
+| Variable | Value | Used for |
+|---|---|---|
+| `sl_price_dist` | `sl_pips × pip_size` (e.g. 0.0020) | OANDA order price levels, pip counts |
+| `sl_usd` | `sl_usd_rec` from signals (e.g. 0.0027 at pip_value=13.5) | Position sizing, RR display, reward calc |
+
+```python
+# Before (bug — GBP distance used as USD for EUR/GBP sizing):
+sl_usd = compute_sl_usd(levels, settings)          # 0.0020 (GBP)
+units  = calculate_units_from_position(pos, sl_usd)  # 45/0.0020 = 22,500 ❌
+
+# After (fix — USD-adjusted value used for sizing):
+sl_price_dist = compute_sl_usd(levels, settings)     # 0.0020 (GBP, for order)
+sl_usd = float(levels.get("sl_usd_rec") or sl_price_dist)  # 0.0027 (USD)
+units  = calculate_units_from_position(pos, sl_usd)  # 45/0.0027 = 16,667 ✓
+```
+
+Also fixed: `compute_sl_tp_pips()`, `compute_sl_tp_prices()`, and post-fill
+`sl_price` / `tp_price` recalculation now correctly use `sl_price_dist` /
+`tp_price_dist` (price terms), while `reward_usd`, `rr_ratio`, and the Telegram
+trade alert use `sl_usd` / `tp_usd` (true USD values).
+
+**`settings.json` + `settings.json.example` — `pip_value_usd` for EUR/GBP updated**
+
+```diff
+  "EUR_GBP": {
+    "sl_pips": 20,
+    "tp_pips": 30,
+-   "pip_value_usd": 11.0,   // GBP/USD ≈ 1.10 — original assumption (stale)
++   "pip_value_usd": 13.5,   // GBP/USD ≈ 1.35 — reflects current rate
+```
+
+At pip_value_usd = 13.5:
+- `sl_usd_rec` (20p) = 20 × 13.5 / 100,000 = **0.0027** (vs 0.0020 before)
+- Full position ($60) → ~22,222 units → actual risk ≈ $60.00 ✓
+- Partial position ($45) → ~16,667 units → actual risk ≈ $45.00 ✓
+
+`pip_value_usd` for AUD/USD remains 10.0 — always exact for USD-quoted pairs.
+
+**`signals.py` — added explanatory comments to SL/TP injection block**
+
+Clarifies the distinction between `sl_price_dist` (price-domain, used for orders)
+and `sl_usd_rec` (USD-domain, used for sizing). No logic changes.
+
+**`bot.py` — `calculate_units_from_position()` docstring updated**
+
+Old docstring said "Exact USD risk for EUR/GBP + AUD/USD" which was incorrect
+before this fix (it was only exact for AUD/USD).
+
+### Impact
+
+| | Before v1.9 | After v1.9 |
+|---|---|---|
+| EUR/GBP full pos ($60) | ~30,000 units / ~$81.78 actual | ~22,222 units / ~$60.01 actual |
+| EUR/GBP partial ($45) | ~22,500 units / ~$55.80 actual | ~16,667 units / ~$45.01 actual |
+| AUD/USD full pos ($60) | 40,000 units / $60.00 exact | 40,000 units / $60.00 exact ✓ |
+| AUD/USD partial ($45) | 30,000 units / $45.00 exact | 30,000 units / $45.00 exact ✓ |
+
+SL/TP pip values unchanged. Strategy unchanged. No settings removed.
+
+### `pip_value_usd` maintenance note
+
+`pip_value_usd` for EUR/GBP is a **static approximation** of the GBP→USD conversion
+factor. It needs periodic review when GBP/USD moves significantly (±0.10). The value
+is set to 13.5 for GBP/USD ≈ 1.35 as of May 2026. When GBP/USD moves to a new
+sustained level, update this value in `pair_sl_tp.EUR_GBP.pip_value_usd`.
+
+A future enhancement (v2.x) could fetch live GBP/USD from OANDA and compute
+`pip_value_usd` dynamically each cycle, eliminating the drift risk entirely.
+
+### Files changed
+
+```
+bot.py             — _signal_phase sizing block rewritten; docstring updated
+signals.py         — explanatory comments added to SL/TP injection block
+settings.json      — pip_value_usd EUR_GBP: 11.0 → 13.5; bot_name → v1.9
+settings.json.example — same
+version.py         — 1.8.0 → 1.9.0
+CHANGELOG.md, README.md, SETTINGS.md, CONFLUENCE_READY.md — version bumps
+```
+
+### Verification
+
+- All 16 Python files compile cleanly.
+- `pyflakes *.py` → 0 warnings.
+- All JSON files valid.
+- `sl_usd_rec` populated by `signals.py` for every signal above threshold.
+- Emergency fallback (`sl_price_dist` when `sl_usd_rec` absent) preserves
+  existing behaviour for any edge case where signals bypass the injection block.
+- AUD/USD sizing unchanged (sl_usd_rec == sl_price_dist numerically for USD-quoted).
+
+---
+
 ## v1.8.0 — 2026-04-30
 
 **UX milestone release.** Three Telegram polish items, no strategy changes.

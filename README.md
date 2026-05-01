@@ -1,4 +1,4 @@
-# Zen Scalp v1.8 — EUR/GBP + AUD/USD M15 Mean Reversion Bot
+# Zen Scalp v1.9 — EUR/GBP + AUD/USD M15 Mean Reversion Bot
 
 > **Deployed on Railway · OANDA API · Telegram Alerts**
 
@@ -100,7 +100,7 @@ data review.
 
 ---
 
-# Zen Scalp v1.8 — EUR/GBP + AUD/USD M15 Mean Reversion Bot
+# Zen Scalp v1.9 — EUR/GBP + AUD/USD M15 Mean Reversion Bot
 
 Day reset: 08:00 SGT · Loss cap: 6/day · Global cap: 2 open trades (1 per pair).
 
@@ -112,7 +112,7 @@ Day reset: 08:00 SGT · Loss cap: 6/day · Global cap: 2 open trades (1 per pair
 |---|---|---|
 | Full position (score 5–6) | $60 | $60 |
 | Partial position (score 4) | $45 | $45 |
-| pip_value_usd | $11.00 (GBP-quoted) | $10.00 (USD-quoted) |
+| pip_value_usd | $13.50 (GBP-quoted) | $10.00 (USD-quoted) |
 | TP | 30p | **22p** |
 | SL | 20p | **15p** |
 | BE Step 1 trigger | +15p | **+11p** |
