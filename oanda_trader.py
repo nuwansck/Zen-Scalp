@@ -268,13 +268,40 @@ class OandaTrader:
             if r.status_code in [200, 201]:
                 if "orderFillTransaction" in data:
                     fill = data["orderFillTransaction"]
-                    trade_id = fill.get("id", "N/A")
+                    # IMPORTANT: orderFillTransaction["id"] is the fill transaction ID,
+                    # not always the open trade ID. Break-even management and P&L
+                    # reconciliation call /trades/{trade_id}, so we must persist
+                    # orderFillTransaction.tradeOpened.tradeID when OANDA returns it.
+                    trade_opened = fill.get("tradeOpened") or {}
+                    trade_reduced = fill.get("tradeReduced") or {}
+                    trade_id = (
+                        trade_opened.get("tradeID")
+                        or trade_reduced.get("tradeID")
+                        or fill.get("tradeID")
+                        or fill.get("id")
+                    )
+                    transaction_id = fill.get("id")
                     try:
                         fill_price = float(fill.get("price", 0))
                     except (TypeError, ValueError):
                         fill_price = None
-                    log.info("Trade placed! ID: %s | Fill price: %s", trade_id, fill_price)
-                    return {"success": True, "trade_id": trade_id, "fill_price": fill_price}
+                    if not trade_opened.get("tradeID"):
+                        log.warning(
+                            "Order filled but tradeOpened.tradeID was missing; "
+                            "fallback trade_id=%s transaction_id=%s",
+                            trade_id, transaction_id,
+                        )
+                    log.info(
+                        "Trade placed! tradeID=%s | transactionID=%s | Fill price: %s",
+                        trade_id, transaction_id, fill_price,
+                    )
+                    return {
+                        "success": True,
+                        "trade_id": str(trade_id) if trade_id is not None else None,
+                        "transaction_id": str(transaction_id) if transaction_id is not None else None,
+                        "fill_price": fill_price,
+                        "raw_response": data,
+                    }
                 if "orderCancelTransaction" in data:
                     cancel = data["orderCancelTransaction"]
                     reason = cancel.get("reason", "Unknown")

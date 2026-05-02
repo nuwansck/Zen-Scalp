@@ -117,7 +117,7 @@ def load_settings() -> dict:
 
     original_keys = set(settings.keys())
 
-    settings.setdefault('bot_name', 'Zen Scalp v1.9')
+    settings.setdefault('bot_name', 'Zen Scalp v2.0')
     settings.setdefault('enabled', True)
     settings.setdefault('cycle_minutes', 5)
     settings.setdefault('db_retention_days', 90)
@@ -135,7 +135,7 @@ def load_settings() -> dict:
     settings.setdefault('max_trades_us', 10)
     settings.setdefault('max_losing_trades_session', 4)
     # Signal engine
-    settings.setdefault('min_rr_ratio',              1.6)   # 1.5x RR for EUR/GBP + AUD/USD
+    settings.setdefault('min_rr_ratio',              1.4)   # aligned with settings.json
     # H1 trend filter
     settings.setdefault('h1_filter_enabled',        True)
     settings.setdefault('h1_filter_mode',           'soft')  # 'soft'=observe only | 'strict'=block
@@ -171,7 +171,7 @@ def load_settings() -> dict:
     # v1.7: per-pair split. EUR/GBP keeps TP30/SL20; AUD/USD reduced to TP22/SL15.
     # Both pairs get 2-step trailing breakeven (Step 1 small lock, Step 2 deeper lock).
     settings.setdefault('pair_sl_tp', {
-        'EUR_GBP': {'sl_pips': 20, 'tp_pips': 30, 'pip_value_usd': 11.0,
+        'EUR_GBP': {'sl_pips': 20, 'tp_pips': 30, 'pip_value_usd': 13.5,
                     'be_trigger_pips': 15, 'be_lock_pips': 3,
                     'be_step2_trigger_pips': 25, 'be_step2_lock_pips': 13},
         'AUD_USD': {'sl_pips': 15, 'tp_pips': 22, 'pip_value_usd': 10.0,

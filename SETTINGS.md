@@ -1,4 +1,4 @@
-# Zen Scalp v1.9 — Settings Reference
+# Zen Scalp v2.0 — Settings Reference
 
 ---
 
@@ -6,7 +6,7 @@
 
 | Key | Value |
 |---|---|
-| `bot_name` | `"Zen Scalp v1.9"` |
+| `bot_name` | `"Zen Scalp v2.0"` |
 | `demo_mode` | `true` |
 
 ---
@@ -147,9 +147,9 @@ be > Step 1 lock. Invalid configs auto-disable Step 2 with a warning.
 
 | Key | Value |
 |---|---|
-| `daily_report_hour_sgt` | `4` (Mon–Fri 04:00) |
-| `weekly_report_hour_sgt` | `8` (Mon 08:15) |
-| `monthly_report_hour_sgt` | `8` (first Mon 08:00) |
+| `daily_report_hour_sgt` / `daily_report_minute_sgt` | `7` / `50` (Mon–Fri 07:50 SGT) |
+| `weekly_report_hour_sgt` / `weekly_report_minute_sgt` | `8` / `0` (Mon 08:00 SGT; export follows 08:05) |
+| `monthly_report_hour_sgt` / `monthly_report_minute_sgt` | `8` / `10` (first Mon 08:10 SGT) |
 | `db_retention_days` | `90` |
 | `db_cleanup_hour_sgt` | `0:15` |
 | `db_vacuum_weekly` | `true` |
@@ -181,3 +181,21 @@ atr_period              m5_candle_count
 Also fixed in v1.6: `us_session_early_end_hour` default in `config_loader.py`
 was `3` (would silently enable US continuation on a fresh deploy if missing
 from `settings.json`); now `99` consistently across all defaults.
+
+
+## v2.0 TP/SL/BE/RR Reliability Fix
+
+This build keeps the v1.9 strategy settings unchanged but hardens trade management:
+
+- Saves the real OANDA `orderFillTransaction.tradeOpened.tradeID` instead of the fill transaction ID. This is required for break-even SL modification and P&L reconciliation via `/trades/{trade_id}`.
+- Keeps TP/SL attached on fill using OANDA `takeProfitOnFill` and `stopLossOnFill`.
+- Adds a final execution-side RR guard using `min_rr_ratio` before any order is sent.
+- Recalculates actual estimated risk/reward after margin scaling or margin-reject retry.
+- Aligns EUR/GBP fallback `pip_value_usd` with settings/docs at `13.5`.
+
+### Current TP/SL/BE/RR settings
+
+| Pair | SL | TP | RR | BE Step 1 | BE Step 2 |
+|---|---:|---:|---:|---|---|
+| EUR/GBP | 20 pips | 30 pips | 1.50 | +15p trigger, lock +3p | +25p trigger, lock +13p |
+| AUD/USD | 15 pips | 22 pips | 1.47 | +11p trigger, lock +3p | +18p trigger, lock +10p |

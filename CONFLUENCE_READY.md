@@ -1,6 +1,6 @@
-# Zen Scalp v1.9 — Technical Specification
+# Zen Scalp v2.0 — Technical Specification
 
-**Bot:** Zen Scalp v1.9   **Pairs:** EUR/GBP + AUD/USD   **Exchange:** OANDA (demo)
+**Bot:** Zen Scalp v2.0   **Pairs:** EUR/GBP + AUD/USD   **Exchange:** OANDA (demo)
 **Platform:** Railway (Singapore)   **Timeframe:** M15   **Cycle:** 5 min
 
 ---
@@ -235,3 +235,21 @@ of `trade_history.json` to Telegram every Monday 08:20 SGT.
 | v1.7 | 2026-04-29 | Per-pair parameter split + Two-step trailing breakeven. EUR/GBP keeps TP30/SL20/BE15+3 unchanged (it works). AUD/USD reduced to TP22/SL15/BE11+3 (avg winner peak was +14.7p, doesn't justify TP30). Both pairs gain Step 2 BE: deeper profit lock when MFE continues past Step 1 trigger (EUR/GBP +25p→lock+13, AUD/USD +18p→lock+10). New `breakeven_step` field on trades (backward-compatible with `breakeven_moved`). Bug fix: session-open Telegram message dedup moved from per-pair to global state file (was firing twice every session start). |
 | v1.7.1–1.7.3 | 2026-04-29 | Three cleanup passes. Removed unused imports/locals (24→9 pyflakes), 4 orphan templates + 1 orphan helper, fixed 9 stylistic f-strings (9→0 pyflakes). Stale module docstrings (bot.py session schedule, reporting.py daily report time, database.py CPR→Zen, calendar_fetcher.py rewritten), `CPR GOLD BOT` performance header → ZEN SCALP, User-Agent CableScalp→ZenScalp. No functional changes across all three. |
 | **v1.9** | **2026-04-30** | **UX milestone release.** New combined `msg_trading_window_closed()` card replaces per-pair "Outside session" spam (was 2× per cycle every 5 min during 14-hr off-hours; now 1 card per transition globally). Pretty pair display: `EUR/GBP` / `AUD/USD` (slash) in user-facing strings — log lines and DB rows keep OANDA-native underscore format. US session disabled lines split with distinct icons (🇺🇸 vs 🌙) and always show hours for visual clarity. No strategy changes. |
+
+
+## v2.0 TP/SL/BE/RR Reliability Fix
+
+This build keeps the v1.9 strategy settings unchanged but hardens trade management:
+
+- Saves the real OANDA `orderFillTransaction.tradeOpened.tradeID` instead of the fill transaction ID. This is required for break-even SL modification and P&L reconciliation via `/trades/{trade_id}`.
+- Keeps TP/SL attached on fill using OANDA `takeProfitOnFill` and `stopLossOnFill`.
+- Adds a final execution-side RR guard using `min_rr_ratio` before any order is sent.
+- Recalculates actual estimated risk/reward after margin scaling or margin-reject retry.
+- Aligns EUR/GBP fallback `pip_value_usd` with settings/docs at `13.5`.
+
+### Current TP/SL/BE/RR settings
+
+| Pair | SL | TP | RR | BE Step 1 | BE Step 2 |
+|---|---:|---:|---:|---|---|
+| EUR/GBP | 20 pips | 30 pips | 1.50 | +15p trigger, lock +3p | +25p trigger, lock +13p |
+| AUD/USD | 15 pips | 22 pips | 1.47 | +11p trigger, lock +3p | +18p trigger, lock +10p |

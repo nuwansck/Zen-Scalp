@@ -455,18 +455,19 @@ def send_weekly_report() -> None:
 
 
 def send_weekly_export() -> None:
-    """Send trade_history.json as a Telegram file attachment every Monday 08:20 SGT.
+    """Send trade_history.csv as a Telegram file attachment every Monday 08:05 SGT.
 
-    Fires 5 minutes after the weekly performance report (08:15 SGT) so the
-    text report arrives first, then the raw data file follows.
-
-    The exported file contains all trade records including H1 trend fields:
-    h1_trend, h1_aligned — used for post-trade analysis of the H1 filter.
+    Fires 5 minutes after the weekly performance report, so the text report
+    arrives first, then the raw data file follows. The source of truth remains
+    trade_history.json on the data volume; this function converts it to CSV for
+    easier review in Excel/Sheets.
     """
     try:
+        import csv
         import os
         data_dir     = Path(os.getenv("DATA_DIR", "/data"))
         history_file = data_dir / "trade_history.json"
+        export_file  = data_dir / "trade_history.csv"
         alert        = TelegramAlert()
 
         if not history_file.exists():
@@ -474,26 +475,52 @@ def send_weekly_export() -> None:
             alert.send("📎 Weekly export: no trade history found on volume.")
             return
 
+        raw_history = _load_history()
+        if not raw_history:
+            alert.send("📎 Weekly export: trade history is empty.")
+            return
+
+        # Stable useful column order first; any future keys are appended after.
+        preferred = [
+            "timestamp_sgt", "instrument", "direction", "setup", "score",
+            "status", "trade_id", "entry", "signal_entry", "close",
+            "sl_price", "tp_price", "stop_pips", "tp_pips", "size",
+            "estimated_risk_usd", "estimated_reward_usd", "pnl",
+            "session", "spread_pips", "h1_trend", "h1_aligned",
+            "duration_sec", "reason",
+        ]
+        all_keys = []
+        for row in raw_history:
+            for key in row.keys():
+                if key not in all_keys:
+                    all_keys.append(key)
+        fieldnames = [k for k in preferred if k in all_keys] + [k for k in all_keys if k not in preferred]
+
+        with export_file.open("w", newline="", encoding="utf-8") as fh:
+            writer = csv.DictWriter(fh, fieldnames=fieldnames, extrasaction="ignore")
+            writer.writeheader()
+            writer.writerows(raw_history)
+
         now    = datetime.now(SGT)
-        filled = _filled(_load_history())
+        filled = _filled(raw_history)
 
         # Count H1 filter stats this week for the caption
         pw_start, pw_end, pw_label = _prior_week_window(now)
         pw_trades = _trades_in_window(filled, pw_start, pw_end)
         h1_counter  = sum(1 for t in pw_trades if not t.get("h1_aligned", True))
         h1_aligned  = sum(1 for t in pw_trades if t.get("h1_aligned", True))
-        all_trades  = len(_load_history())
+        all_trades  = len(raw_history)
 
         caption = (
-            f"trade_history.json — {pw_label}\n"
+            f"trade_history.csv — {pw_label}\n"
             f"{all_trades} total records  |  {len(filled)} filled trades\n"
             f"This week: {len(pw_trades)} trades  "
             f"({h1_aligned} H1-aligned  /  {h1_counter} counter-trend)"
         )
 
-        ok = alert.send_document(history_file, caption=caption)
+        ok = alert.send_document(export_file, caption=caption)
         if ok:
-            log.info("Weekly export sent: %d total records, %d this week.",
+            log.info("Weekly CSV export sent: %d total records, %d this week.",
                      all_trades, len(pw_trades))
         else:
             log.warning("Weekly export: send_document failed.")

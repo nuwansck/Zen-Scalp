@@ -135,12 +135,12 @@ def main():
     retention_days = int(settings.get('db_retention_days', 90))
 
     # Report schedule — configurable via settings.json
-    daily_report_hour    = int(settings.get('daily_report_hour_sgt',     4))  # 04:00 SGT — dead zone start
-    daily_report_minute  = int(settings.get('daily_report_minute_sgt',   0))
+    daily_report_hour    = int(settings.get('daily_report_hour_sgt',     7))  # Mon–Fri 07:50 SGT
+    daily_report_minute  = int(settings.get('daily_report_minute_sgt',   50))
     weekly_report_hour   = int(settings.get('weekly_report_hour_sgt',    8))
-    weekly_report_minute = int(settings.get('weekly_report_minute_sgt', 15))
+    weekly_report_minute = int(settings.get('weekly_report_minute_sgt', 0))
     monthly_report_hour  = int(settings.get('monthly_report_hour_sgt',   8))
-    monthly_report_minute= int(settings.get('monthly_report_minute_sgt', 0))
+    monthly_report_minute= int(settings.get('monthly_report_minute_sgt', 10))
 
     # Singleton alert — constructed once, shared across all cycles.
     # Avoids re-reading secrets + creating new HTTP sessions every 5 minutes.
@@ -197,7 +197,7 @@ def main():
         coalesce=True,
     )
 
-    # Weekly export: Monday 08:20 SGT — 5 min after weekly report
+    # Weekly export: Monday 08:05 SGT — 5 min after weekly report
     scheduler.add_job(
         send_weekly_export,
         CronTrigger(day_of_week='mon', hour=weekly_report_hour,
@@ -208,7 +208,7 @@ def main():
         coalesce=True,
     )
 
-    # Daily: Mon–Fri at daily_report_hour SGT (04:00 = dead zone start, full day captured)
+    # Daily: Mon–Fri at daily_report_hour SGT
     scheduler.add_job(
         send_daily_report,
         CronTrigger(day_of_week='mon-fri', hour=daily_report_hour,
@@ -246,7 +246,7 @@ def main():
                 monthly_report_hour, monthly_report_minute)
     logger.info('  Weekly report  — every Monday at %02d:%02d SGT',
                 weekly_report_hour, weekly_report_minute)
-    logger.info('  Weekly export  — every Monday at %02d:%02d SGT (trade_history.json)',
+    logger.info('  Weekly export  — every Monday at %02d:%02d SGT (trade_history.csv)',
                 weekly_report_hour, weekly_report_minute + 5)
     logger.info('  Daily report   — Mon–Fri at %02d:%02d SGT',
                 daily_report_hour, daily_report_minute)

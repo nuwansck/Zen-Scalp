@@ -261,7 +261,7 @@ def validate_settings(settings: dict) -> dict:
     settings.setdefault("news_lookahead_min",         120)
     settings.setdefault("news_medium_penalty_score",  -1)
     settings.setdefault("loss_streak_cooldown_min",   30)
-    settings.setdefault("min_rr_ratio",               1.6)
+    settings.setdefault("min_rr_ratio",               1.4)
     settings.setdefault("rr_ratio",                   1.67)  # fallback only — pair_sl_tp always used
     settings.setdefault("calendar_prune_days_ahead",  21)
     settings.setdefault("startup_dedup_seconds",      90)
@@ -279,12 +279,12 @@ def validate_settings(settings: dict) -> dict:
     settings.setdefault("dead_zone_start_hour",        4)   # 04:00 SGT — pre-Tokyo gap
     settings.setdefault("dead_zone_end_hour",           7)   # 07:59 SGT end
     # report schedule times (SGT)
-    settings.setdefault("daily_report_hour_sgt",       4)   # 04:00 SGT — dead zone start
-    settings.setdefault("daily_report_minute_sgt",     0)
+    settings.setdefault("daily_report_hour_sgt",       7)   # Mon–Fri 07:50 SGT
+    settings.setdefault("daily_report_minute_sgt",     50)
     settings.setdefault("weekly_report_hour_sgt",      8)
-    settings.setdefault("weekly_report_minute_sgt",   15)
+    settings.setdefault("weekly_report_minute_sgt",   0)
     settings.setdefault("monthly_report_hour_sgt",     8)
-    settings.setdefault("monthly_report_minute_sgt",   0)
+    settings.setdefault("monthly_report_minute_sgt",   10)
     # Tokyo/Asian session
     settings.setdefault("tokyo_session_start_hour",    8)
     settings.setdefault("tokyo_session_end_hour",     15)
@@ -1669,6 +1669,27 @@ def _signal_phase(db, run_id, settings, alert, trader, history,
 
     signal_blockers = list(levels.get("signal_blockers") or [])
 
+    # Final RR hard block — defense in depth. signals.py normally adds an RR
+    # blocker, but this prevents execution if RR is recomputed differently after
+    # pair/USD conversion or future code changes.
+    min_rr = float(settings.get("min_rr_ratio", 1.4))
+    if rr_ratio is None or rr_ratio < min_rr:
+        reason = f"RR {rr_ratio:.2f} < min_rr_ratio {min_rr:.2f}" if rr_ratio is not None else "RR unavailable"
+        log.warning("[%s] Trade blocked — %s", instrument, reason, extra={"run_id": run_id})
+        _send_signal_update(
+            "BLOCKED", reason,
+            {"rr_ratio": rr_ratio, "tp_pct": tp_pct,
+             "session_ok": True, "news_ok": True,
+             "open_trade_ok": True, "margin_ok": None})
+        update_runtime_state(
+            last_cycle_finished=now_sgt.strftime("%Y-%m-%d %H:%M:%S"),
+            status="SKIPPED_RR_BLOCK", score=score, direction=direction)
+        db.finish_cycle(run_id, status="SKIPPED",
+                        summary={"stage": "rr_guard", "reason": reason,
+                                 "instrument": instrument, "rr_ratio": rr_ratio,
+                                 "min_rr_ratio": min_rr})
+        return None
+
     # H1 strict block — only when h1_filter_mode = "strict"
     _h1_mode    = settings.get("h1_filter_mode", "soft")
     _h1_enabled = bool(settings.get("h1_filter_enabled", True))
@@ -1894,7 +1915,9 @@ def _execution_phase(db, run_id, settings, alert, trader, history,
         "sl_usd":               round(sl_usd, dp + 2),
         "tp_usd":               round(tp_usd, dp + 2),
         "pip_size":             pip,
-        "estimated_risk_usd":   round(position_usd, 2),
+        # Actual estimated risk/reward after margin scaling. position_usd is the
+        # requested risk target, but units may be reduced by margin guard.
+        "estimated_risk_usd":   round(units * sl_usd, 6),
         "estimated_reward_usd": round(reward_usd, 6),
         "spread_pips":          spread_pips,
         "stop_pips":            stop_pips,
@@ -1944,6 +1967,7 @@ def _execution_phase(db, run_id, settings, alert, trader, history,
                     result = retry_result
                     units  = retry_units
                     record["size"] = units
+                    record["estimated_risk_usd"] = round(units * sl_usd, 6)
                     record["estimated_reward_usd"] = round(units * tp_usd, 6)
 
         if not result.get("success"):

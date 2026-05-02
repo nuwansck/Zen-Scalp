@@ -20,9 +20,12 @@ def _session_icon(s: str) -> str:
     return "📊"
 
 def _pos_label(p: int) -> str:
-    if p >= 30: return f"Full ${p}"
+    # Match current risk tiers from settings.json: full = $60, partial = $45.
+    # Keep a small medium tier label for any future mid-sized override.
+    if p >= 60: return f"Full ${p}"
+    if p >= 45: return f"Partial ${p}"
     if p >= 20: return f"Medium ${p}"
-    if p >  0:  return f"Partial ${p}"
+    if p >  0:  return f"Small ${p}"
     return "No trade"
 
 def _pnl_icon(v: float) -> str:
@@ -140,12 +143,20 @@ def msg_trade_opened(
         s_str += f" (raw {raw_score})"
 
     pip = _ps(price_dp)
-    sl_p  = round(sl_usd / pip)
-    tp_p  = round(tp_usd / pip)
-    tp2_p = round(sl_usd * tp2_rr / pip)
+
+    # Display pip counts must come from the actual order price distances.
+    # sl_usd/tp_usd are USD-per-unit sizing values; for non-USD quoted pairs
+    # such as EUR/GBP they include pip_value_usd conversion and will display
+    # wrong pip counts/prices if reused here.
+    sl_price_dist = abs(float(fill_price) - float(sl_price))
+    tp_price_dist = abs(float(tp_price) - float(fill_price))
+    sl_p  = round(sl_price_dist / pip)
+    tp_p  = round(tp_price_dist / pip)
+    tp2_price_dist = sl_price_dist * float(tp2_rr)
+    tp2_p = round(tp2_price_dist / pip)
     tp2_price = round(
-        fill_price + sl_usd * tp2_rr if direction == "BUY"
-        else fill_price - sl_usd * tp2_rr, price_dp
+        fill_price + tp2_price_dist if direction == "BUY"
+        else fill_price - tp2_price_dist, price_dp
     )
     units_fmt = f"{int(units):,}" if units >= 1000 else str(int(units))
 

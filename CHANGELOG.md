@@ -1143,3 +1143,21 @@ Startup card now shows:
 🗼 08:00–15:59  Tokyo      cap 6  score≥4
 🇬🇧 16:00–20:59  London     cap 6  score≥4
 ```
+
+
+## v2.0 TP/SL/BE/RR Reliability Fix
+
+This build keeps the v1.9 strategy settings unchanged but hardens trade management:
+
+- Saves the real OANDA `orderFillTransaction.tradeOpened.tradeID` instead of the fill transaction ID. This is required for break-even SL modification and P&L reconciliation via `/trades/{trade_id}`.
+- Keeps TP/SL attached on fill using OANDA `takeProfitOnFill` and `stopLossOnFill`.
+- Adds a final execution-side RR guard using `min_rr_ratio` before any order is sent.
+- Recalculates actual estimated risk/reward after margin scaling or margin-reject retry.
+- Aligns EUR/GBP fallback `pip_value_usd` with settings/docs at `13.5`.
+
+### Current TP/SL/BE/RR settings
+
+| Pair | SL | TP | RR | BE Step 1 | BE Step 2 |
+|---|---:|---:|---:|---|---|
+| EUR/GBP | 20 pips | 30 pips | 1.50 | +15p trigger, lock +3p | +25p trigger, lock +13p |
+| AUD/USD | 15 pips | 22 pips | 1.47 | +11p trigger, lock +3p | +18p trigger, lock +10p |

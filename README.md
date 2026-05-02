@@ -1,4 +1,4 @@
-# Zen Scalp v1.9 — EUR/GBP + AUD/USD M15 Mean Reversion Bot
+# Zen Scalp v2.0 — EUR/GBP + AUD/USD M15 Mean Reversion Bot
 
 > **Deployed on Railway · OANDA API · Telegram Alerts**
 
@@ -100,7 +100,7 @@ data review.
 
 ---
 
-# Zen Scalp v1.9 — EUR/GBP + AUD/USD M15 Mean Reversion Bot
+# Zen Scalp v2.0 — EUR/GBP + AUD/USD M15 Mean Reversion Bot
 
 Day reset: 08:00 SGT · Loss cap: 6/day · Global cap: 2 open trades (1 per pair).
 
@@ -171,3 +171,21 @@ analyze_trades.py     — offline trade analyzer
 startup_checks.py     — environment / connectivity checks
 test_telegram.py      — Telegram smoke test
 ```
+
+
+## v2.0 TP/SL/BE/RR Reliability Fix
+
+This build keeps the v1.9 strategy settings unchanged but hardens trade management:
+
+- Saves the real OANDA `orderFillTransaction.tradeOpened.tradeID` instead of the fill transaction ID. This is required for break-even SL modification and P&L reconciliation via `/trades/{trade_id}`.
+- Keeps TP/SL attached on fill using OANDA `takeProfitOnFill` and `stopLossOnFill`.
+- Adds a final execution-side RR guard using `min_rr_ratio` before any order is sent.
+- Recalculates actual estimated risk/reward after margin scaling or margin-reject retry.
+- Aligns EUR/GBP fallback `pip_value_usd` with settings/docs at `13.5`.
+
+### Current TP/SL/BE/RR settings
+
+| Pair | SL | TP | RR | BE Step 1 | BE Step 2 |
+|---|---:|---:|---:|---|---|
+| EUR/GBP | 20 pips | 30 pips | 1.50 | +15p trigger, lock +3p | +25p trigger, lock +13p |
+| AUD/USD | 15 pips | 22 pips | 1.47 | +11p trigger, lock +3p | +18p trigger, lock +10p |
