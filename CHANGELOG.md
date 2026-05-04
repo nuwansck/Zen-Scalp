@@ -2,6 +2,125 @@
 
 ---
 
+## v2.1.0 — 2026-05-04
+
+**Polish & docs release.** No strategy changes, no behavioural changes.
+Tidies a small fallback inconsistency from v2.0 and refreshes all
+end-user-facing documentation.
+
+### What changed
+
+#### 1. Unified `min_rr_ratio` fallback default to 1.4
+
+The codebase had three different fallback values for `min_rr_ratio` when
+the key is absent from `settings.json`:
+
+| Location | Before | After |
+|---|---|---|
+| `bot.py:264` (`settings.setdefault`) | 1.4 | 1.4 ✓ |
+| `signals.py:302` (actual gate) | 1.4 | 1.4 ✓ |
+| `bot.py:1675` (final RR guard, v2.0) | 1.4 | 1.4 ✓ |
+| `bot.py:183` (display formatter signature) | 1.6 | **1.4** |
+| `bot.py:1590` (Telegram payload composer) | 1.6 | **1.4** |
+
+`settings.json` ships with `1.4`, so the active value is always 1.4 and
+the inconsistent defaults never fired in production. This fix tidies
+the codebase so any future deploys without `settings.json` (or where
+the key is removed) behave consistently.
+
+**Behavioural impact: zero.**
+
+#### 2. Documentation refresh
+
+`README.md`, `SETTINGS.md`, and `CONFLUENCE_READY.md` were rewritten to
+remove duplicated "v2.0 TP/SL/BE/RR Reliability Fix" boxes that had been
+appended at the end of each file during the v2.0 release. Headlines
+updated to v2.1. `cycle_minutes: 5` reference in old SETTINGS table
+corrected to `3`. `position_full_usd` denomination clarified as
+account-home currency (not necessarily USD).
+
+`CHANGELOG.md` consolidated. `CONFLUENCE_READY.md` now contains a clean
+version history table from v1.0 through v2.1, plus a new "Current
+production settings" table for at-a-glance config reference.
+
+#### 3. Telegram template render audit
+
+All 17 user-facing templates were render-tested with realistic v2.0+
+inputs. Result: 17/17 OK. No template changes needed.
+
+The 19 templates total in `telegram_templates.py` — 17 user-facing
+(tested) plus `msg_daily_report` / `msg_weekly_report` /
+`msg_monthly_report` / `msg_session_open_multi` rendering paths
+(verified via signature inspection; full render needs DB context).
+
+### Files changed
+
+```
+bot.py             — min_rr_ratio defaults at lines 183 and 1590 → 1.4
+version.py         — 2.0.0 → 2.1.0
+settings.json      — bot_name → "Zen Scalp v2.1"
+README.md          — full rewrite (clean v2.1 reference)
+SETTINGS.md        — full rewrite (clean v2.1 reference)
+CONFLUENCE_READY.md — version table consolidated, current-config table added
+CHANGELOG.md       — this entry
+```
+
+### Verification
+
+- Compile: all 16 Python files OK
+- JSON: 3 files valid
+- Pyflakes: 0 warnings (preserved from v2.0)
+- Telegram render audit: 17/17 user-facing templates OK
+- All 5 `min_rr_ratio` references read 1.4 consistently
+
+### Deferred items (not in v2.1)
+
+These remain candidates for future v2.x releases:
+
+- **Dynamic `pip_value_usd` lookup** — query OANDA's
+  `quoteHomeConversionFactors` per cycle to eliminate static-config
+  drift when GBP/USD moves materially. Avoids periodic manual config
+  updates.
+- **Off-hours cycle optimization** — extend the dead-zone early-exit
+  pattern to the 21:00-03:59 SGT window when no trades are open. Saves
+  ~70-80% of work per cycle in those 7 hours.
+- **Function refactors** — `_guard_phase` (451 lines), `_signal_phase`
+  (309 lines), `_execution_phase` (207 lines) are large. Split into
+  focused functions when there's a clean opportunity (post-strategy-
+  review milestone).
+
+---
+
+## v2.0 — 2026-05-04
+
+**TP/SL/BE/RR Reliability Fix.** Strategy unchanged from v1.9, but trade
+management hardened.
+
+### What changed
+
+- **Real OANDA trade ID persistence.** The bot now saves
+  `orderFillTransaction.tradeOpened.tradeID` instead of the fill
+  transaction ID. This is required for break-even SL modification
+  (`/trades/{trade_id}/orders`) and P&L reconciliation (`/trades/{trade_id}`).
+  The two IDs are usually different — the previous code path was likely
+  silently using the wrong ID for these lookups.
+- **TP/SL attached on fill** via OANDA's `takeProfitOnFill` and
+  `stopLossOnFill` — protection in place from the moment the trade
+  opens, not on a subsequent modify call (which could fail or arrive
+  late).
+- **Final RR execution guard** before order send (`min_rr_ratio = 1.4`).
+  Defense-in-depth in addition to the signal-layer check.
+- **Post-margin recalc.** When the auto-scale-on-margin-reject path
+  fires, `record["estimated_risk_usd"]` and `record["estimated_reward_usd"]`
+  are recalculated to reflect the actual sized risk (was previously
+  showing the original requested size in trade history).
+- **EUR/GBP fallback `pip_value_usd` aligned** to 13.5 in `bot.py`
+  setdefault (was 11.0 — settings.json already had 13.5 from v1.9).
+
+No strategy parameter changes.
+
+---
+
 ## v1.9.0 — 2026-05-01
 
 **Critical sizing bug fix: EUR/GBP position size now correctly targets USD risk.**

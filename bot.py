@@ -180,7 +180,7 @@ def _clean_reason(text: str) -> str:
 def _build_signal_checks(score, direction, rr_ratio=None, tp_pct=None,
                          spread_pips=None, spread_limit=None, session_ok=True,
                          news_ok=True, open_trade_ok=True, margin_ok=None,
-                         cooldown_ok=True, signal_threshold=4, min_rr_ratio=1.6):
+                         cooldown_ok=True, signal_threshold=4, min_rr_ratio=1.4):
     mandatory_checks = [
         (f"Score >= {signal_threshold}",
          score >= signal_threshold and direction != "NONE", f"{score}/6"),
@@ -1587,7 +1587,7 @@ def _signal_phase(db, run_id, settings, alert, trader, history,
     def _send_signal_update(decision, reason, extra_payload=None):
         payload = _signal_payload(score=score, direction=direction,
                                   signal_threshold=_thr,
-                                  min_rr_ratio=float(settings.get("min_rr_ratio", 1.6)),
+                                  min_rr_ratio=float(settings.get("min_rr_ratio", 1.4)),
                                   **(extra_payload or {}))
         msg = msg_signal_update(
             banner=banner, session=session, direction=direction,

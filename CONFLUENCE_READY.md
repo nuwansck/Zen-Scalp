@@ -1,4 +1,4 @@
-# Zen Scalp v2.0 — Technical Specification
+# Zen Scalp v2.1 — Technical Specification
 
 **Bot:** Zen Scalp v2.0   **Pairs:** EUR/GBP + AUD/USD   **Exchange:** OANDA (demo)
 **Platform:** Railway (Singapore)   **Timeframe:** M15   **Cycle:** 5 min
@@ -229,27 +229,37 @@ of `trade_history.json` to Telegram every Monday 08:20 SGT.
 | v1.2 | 2026-04-17 | SL/TP injection fix (18p → 20p). EUR/GBP pip_value 13.5. AUD_USD defaults. |
 | v1.3 | 2026-04-17 | Full codebase cleanup. All stale refs removed. Clean docs. |
 | v1.4 | 2026-04-17 | `max_trades_tokyo` set to 6 — matches London cap. Tokyo cap fixed on startup card. |
-| v1.5 | 2026-04-18 | **BE enabled** with configurable `be_lock_pips`. Fixed `modify_sl` precision bug (`:.2f` → `displayPrecision`). |
+| v1.5 | 2026-04-18 | **BE enabled** with configurable `be_lock_pips`. Fixed `modify_sl` precision bug. |
 | v1.6 | 2026-04-28 | Maintenance: weekly report `KeyError` fix. Removed 8 dead config keys (ORB/EMA/ATR carryovers). Fixed M5 → M15 timeframe label in DB. Fixed `us_session_early_end_hour` default 3 → 99. Removed disabled `workflow.yml`. Doc refresh. |
-| v1.6.1 | 2026-04-28 | Weekend gap-risk protection. New `force_close_for_weekend()` runs every cycle on Friday from 22:00 SGT, force-closes all open positions via OANDA position-close API. Independent of `friday_cutoff` (which only blocks new entries). Configurable via `weekend_close_enabled/_hour_sgt/_minute_sgt`. New 🌙 Telegram alert template. No strategy changes. |
-| v1.7 | 2026-04-29 | Per-pair parameter split + Two-step trailing breakeven. EUR/GBP keeps TP30/SL20/BE15+3 unchanged (it works). AUD/USD reduced to TP22/SL15/BE11+3 (avg winner peak was +14.7p, doesn't justify TP30). Both pairs gain Step 2 BE: deeper profit lock when MFE continues past Step 1 trigger (EUR/GBP +25p→lock+13, AUD/USD +18p→lock+10). New `breakeven_step` field on trades (backward-compatible with `breakeven_moved`). Bug fix: session-open Telegram message dedup moved from per-pair to global state file (was firing twice every session start). |
-| v1.7.1–1.7.3 | 2026-04-29 | Three cleanup passes. Removed unused imports/locals (24→9 pyflakes), 4 orphan templates + 1 orphan helper, fixed 9 stylistic f-strings (9→0 pyflakes). Stale module docstrings (bot.py session schedule, reporting.py daily report time, database.py CPR→Zen, calendar_fetcher.py rewritten), `CPR GOLD BOT` performance header → ZEN SCALP, User-Agent CableScalp→ZenScalp. No functional changes across all three. |
-| **v1.9** | **2026-04-30** | **UX milestone release.** New combined `msg_trading_window_closed()` card replaces per-pair "Outside session" spam (was 2× per cycle every 5 min during 14-hr off-hours; now 1 card per transition globally). Pretty pair display: `EUR/GBP` / `AUD/USD` (slash) in user-facing strings — log lines and DB rows keep OANDA-native underscore format. US session disabled lines split with distinct icons (🇺🇸 vs 🌙) and always show hours for visual clarity. No strategy changes. |
+| v1.6.1 | 2026-04-28 | Weekend gap-risk protection. New `force_close_for_weekend()` runs every cycle on Friday from 22:00 SGT, force-closes all open positions via OANDA position-close API. New 🌙 Telegram alert template. |
+| v1.7 | 2026-04-29 | **Per-pair parameter split + Two-step trailing breakeven.** EUR/GBP keeps TP30/SL20/BE15+3 unchanged. AUD/USD reduced to TP22/SL15/BE11+3. Both pairs gain Step 2 BE (EUR/GBP +25p→lock+13, AUD/USD +18p→lock+10). New `breakeven_step` field on trades. Session-open Telegram dedup moved per-pair → global. |
+| v1.7.1–1.7.3 | 2026-04-29 | Three cleanup passes. Pyflakes 24→0. Removed 4 orphan templates + 1 orphan helper. Stale module docstrings refreshed. CPR→Zen references corrected. |
+| v1.8 | 2026-04-30 | **UX milestone.** Combined `msg_trading_window_closed()` card (was 2× per cycle, now 1 per transition). Pretty pair display `EUR/GBP` / `AUD/USD` in Telegram. US session disabled lines split with 🇺🇸 vs 🌙 icons. |
+| v1.9 | 2026-05-01 | **Position sizing fix.** EUR/GBP was sized using GBP price-distance instead of USD-adjusted `sl_usd_rec`, causing ~24% over-target risk. `_signal_phase` sizing now uses `sl_usd_rec` for unit calc; `sl_price_dist` retained for order placement. EUR/GBP `pip_value_usd` updated 11.0 → 13.5 (GBP/USD ≈ 1.35). AUD/USD unchanged (USD-quoted, sizing was correct). |
+| v2.0 | 2026-05-04 | **TP/SL/BE/RR reliability fix.** Persists real OANDA `orderFillTransaction.tradeOpened.tradeID` (was fill transaction ID — `/trades/{trade_id}` lookups were silently using wrong ID). Final RR execution guard before order send. Recalc `estimated_risk_usd` / `estimated_reward_usd` after margin retry. EUR/GBP fallback `pip_value_usd` aligned to 13.5. |
+| **v2.1** | **2026-05-04** | **Polish & docs release.** Unified `min_rr_ratio` fallback default to 1.4 across all sites (was inconsistent: 1.4 in some, 1.6 in others — settings.json value used in production so no behavioural impact). Refreshed README, SETTINGS, CONFLUENCE, CHANGELOG. All 17 user-facing Telegram templates render-tested. No strategy changes. |
 
+---
 
-## v2.0 TP/SL/BE/RR Reliability Fix
+## 12. Current production settings (v2.1)
 
-This build keeps the v1.9 strategy settings unchanged but hardens trade management:
+| Setting | EUR/GBP | AUD/USD |
+|---|---:|---:|
+| SL | 20 pips | 15 pips |
+| TP | 30 pips | 22 pips |
+| RR | 1.50 | 1.47 |
+| BE Step 1 trigger / lock | +15p / +3p | +11p / +3p |
+| BE Step 2 trigger / lock | +25p / +13p | +18p / +10p |
+| pip_value_usd | 13.5 | 10.0 |
+| Full position size | $60 | $60 |
+| Partial position size | $45 | $45 |
 
-- Saves the real OANDA `orderFillTransaction.tradeOpened.tradeID` instead of the fill transaction ID. This is required for break-even SL modification and P&L reconciliation via `/trades/{trade_id}`.
-- Keeps TP/SL attached on fill using OANDA `takeProfitOnFill` and `stopLossOnFill`.
-- Adds a final execution-side RR guard using `min_rr_ratio` before any order is sent.
-- Recalculates actual estimated risk/reward after margin scaling or margin-reject retry.
-- Aligns EUR/GBP fallback `pip_value_usd` with settings/docs at `13.5`.
-
-### Current TP/SL/BE/RR settings
-
-| Pair | SL | TP | RR | BE Step 1 | BE Step 2 |
-|---|---:|---:|---:|---|---|
-| EUR/GBP | 20 pips | 30 pips | 1.50 | +15p trigger, lock +3p | +25p trigger, lock +13p |
-| AUD/USD | 15 pips | 22 pips | 1.47 | +11p trigger, lock +3p | +18p trigger, lock +10p |
+| Global setting | Value |
+|---|---|
+| `cycle_minutes` | 3 |
+| `signal_threshold` | 4 |
+| `min_rr_ratio` | 1.4 |
+| `max_total_open_trades` | 2 (1 per pair) |
+| `weekend_close_enabled` | true (Fri 22:00 SGT) |
+| `be_step2_enabled` | true |
+| US sessions | Disabled |

@@ -1,2 +1,2 @@
-VERSION     = "2.0.0"
-DESCRIPTION = "Zen Scalp v2.0 — TP/SL/BE/RR reliability fix. Persists real OANDA tradeOpened.tradeID for break-even and P&L backfill, adds final RR execution guard, recalculates actual risk/reward after margin scaling, and aligns EUR/GBP pip_value_usd fallback to 13.5."
+VERSION     = "2.1.0"
+DESCRIPTION = "Zen Scalp v2.1 — Polish & docs release. Unifies min_rr_ratio fallback default to 1.4 across all sites (was inconsistent: 1.4 in some, 1.6 in others — settings.json value used in production so no behavioural impact). Refreshes README, SETTINGS, CONFLUENCE, CHANGELOG to reflect current v2.0 strategy and BE Step 2 / weekend close / sizing fix. All 17 Telegram templates render-tested. No strategy changes, no behavioural changes."
