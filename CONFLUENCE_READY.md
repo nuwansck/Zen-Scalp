@@ -1,4 +1,4 @@
-# Zen Scalp v2.1 — Technical Specification
+# Zen Scalp v2.2 — Technical Specification
 
 **Bot:** Zen Scalp v2.0   **Pairs:** EUR/GBP + AUD/USD   **Exchange:** OANDA (demo)
 **Platform:** Railway (Singapore)   **Timeframe:** M15   **Cycle:** 5 min
@@ -238,10 +238,11 @@ of `trade_history.json` to Telegram every Monday 08:20 SGT.
 | v1.9 | 2026-05-01 | **Position sizing fix.** EUR/GBP was sized using GBP price-distance instead of USD-adjusted `sl_usd_rec`, causing ~24% over-target risk. `_signal_phase` sizing now uses `sl_usd_rec` for unit calc; `sl_price_dist` retained for order placement. EUR/GBP `pip_value_usd` updated 11.0 → 13.5 (GBP/USD ≈ 1.35). AUD/USD unchanged (USD-quoted, sizing was correct). |
 | v2.0 | 2026-05-04 | **TP/SL/BE/RR reliability fix.** Persists real OANDA `orderFillTransaction.tradeOpened.tradeID` (was fill transaction ID — `/trades/{trade_id}` lookups were silently using wrong ID). Final RR execution guard before order send. Recalc `estimated_risk_usd` / `estimated_reward_usd` after margin retry. EUR/GBP fallback `pip_value_usd` aligned to 13.5. |
 | **v2.1** | **2026-05-04** | **Polish & docs release.** Unified `min_rr_ratio` fallback default to 1.4 across all sites (was inconsistent: 1.4 in some, 1.6 in others — settings.json value used in production so no behavioural impact). Refreshed README, SETTINGS, CONFLUENCE, CHANGELOG. All 17 user-facing Telegram templates render-tested. No strategy changes. |
+| **v2.2** | **2026-05-06** | **Critical hotfix — H1 + sizing.** Two bugs fixed: (1) H1 soft-mode penalty was documented but never coded — soft mode was effectively observe-only. New `h1_soft_penalty` setting (default -1) applies to score when signal is counter-trend. (2) `pip_value_usd` corrected for SGD home account: AUD/USD 10.0→12.9, EUR/GBP 13.5→17.4. Both pairs were ~29% oversized. Counterfactual on May 4-6 data: -$258 → -$65 SGD (75% loss reduction). |
 
 ---
 
-## 12. Current production settings (v2.1)
+## 12. Current production settings (v2.2)
 
 | Setting | EUR/GBP | AUD/USD |
 |---|---:|---:|
@@ -250,9 +251,9 @@ of `trade_history.json` to Telegram every Monday 08:20 SGT.
 | RR | 1.50 | 1.47 |
 | BE Step 1 trigger / lock | +15p / +3p | +11p / +3p |
 | BE Step 2 trigger / lock | +25p / +13p | +18p / +10p |
-| pip_value_usd | 13.5 | 10.0 |
-| Full position size | $60 | $60 |
-| Partial position size | $45 | $45 |
+| pip_value_usd (SGD per 100k) | 17.4 | 12.9 |
+| Full position size | $60 SGD | $60 SGD |
+| Partial position size | $45 SGD | $45 SGD |
 
 | Global setting | Value |
 |---|---|
@@ -260,6 +261,9 @@ of `trade_history.json` to Telegram every Monday 08:20 SGT.
 | `signal_threshold` | 4 |
 | `min_rr_ratio` | 1.4 |
 | `max_total_open_trades` | 2 (1 per pair) |
+| `h1_filter_enabled` | true |
+| `h1_filter_mode` | soft |
+| `h1_soft_penalty` | -1 (v2.2+) |
 | `weekend_close_enabled` | true (Fri 22:00 SGT) |
 | `be_step2_enabled` | true |
 | US sessions | Disabled |

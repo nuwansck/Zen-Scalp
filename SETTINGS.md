@@ -1,4 +1,4 @@
-# Zen Scalp v2.1 — Settings Reference
+# Zen Scalp v2.2 — Settings Reference
 
 This file documents every key in `settings.json`. The actual config is the
 source of truth; this doc explains what each key does and what the
@@ -35,8 +35,8 @@ no management). Use to pause one pair without redeploying code.
 
 | Pair | sl_pips | tp_pips | pip_value_usd | be_trigger_pips | be_lock_pips | be_step2_trigger_pips | be_step2_lock_pips |
 |---|---|---|---|---|---|---|---|
-| EUR/GBP | 20 | 30 | 13.5 (GBP-quoted) | 15 | 3 | 25 | 13 |
-| AUD/USD | 15 | 22 | 10.0 (USD-quoted) | 11 | 3 | 18 | 10 |
+| EUR/GBP | 20 | 30 | 17.4 (GBP-quoted, SGD home) | 15 | 3 | 25 | 13 |
+| AUD/USD | 15 | 22 | 12.9 (USD-quoted, SGD home) | 11 | 3 | 18 | 10 |
 
 **RR:** EUR/GBP 1.50× · AUD/USD 1.47×
 
@@ -128,7 +128,8 @@ The bot validates this and shows the disabled state in the startup card.
 | `be_step2_trigger_pips` | `25` (global default; pair override active) |
 | `be_step2_lock_pips` | `13` (global default; pair override active) |
 | `h1_filter_enabled` | `true` |
-| `h1_filter_mode` | `"soft"` (penalty only; not a hard block) |
+| `h1_filter_mode` | `"soft"` (penalty only) or `"strict"` (block) |
+| `h1_soft_penalty` | `-1` (v2.2+: score penalty when counter-trend in soft mode) |
 | `h1_ema_period` | `21` |
 
 ---

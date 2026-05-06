@@ -117,7 +117,7 @@ def load_settings() -> dict:
 
     original_keys = set(settings.keys())
 
-    settings.setdefault('bot_name', 'Zen Scalp v2.1')
+    settings.setdefault('bot_name', 'Zen Scalp v2.2')
     settings.setdefault('enabled', True)
     settings.setdefault('cycle_minutes', 5)
     settings.setdefault('db_retention_days', 90)
@@ -138,8 +138,9 @@ def load_settings() -> dict:
     settings.setdefault('min_rr_ratio',              1.4)   # aligned with settings.json
     # H1 trend filter
     settings.setdefault('h1_filter_enabled',        True)
-    settings.setdefault('h1_filter_mode',           'soft')  # 'soft'=observe only | 'strict'=block
+    settings.setdefault('h1_filter_mode',           'soft')  # 'soft'=score penalty | 'strict'=block
     settings.setdefault('h1_ema_period',            21)
+    settings.setdefault('h1_soft_penalty',          -1)      # v2.2: -1 score in soft mode when counter-trend
     settings.setdefault('calendar_prune_days_ahead', 21)
     settings.setdefault('startup_dedup_seconds',     90)
     # Session windows

@@ -1,4 +1,4 @@
-# Zen Scalp v2.1 — EUR/GBP + AUD/USD M15 Mean Reversion Bot
+# Zen Scalp v2.2 — EUR/GBP + AUD/USD M15 Mean Reversion Bot
 
 > **Deployed on Railway · OANDA API · Telegram Alerts**
 
@@ -39,16 +39,15 @@ EUR/GBP and AUD/USD use different SL/TP sized to each pair's daily range.
 EUR/GBP keeps wider targets (daily ATR ~45p), AUD/USD uses tighter targets
 (more reactive intraday).
 
-| Pair | SL | TP | RR | Pip value (USD) |
+| Pair | SL | TP | RR | Pip value (SGD per 100k) |
 |---|---:|---:|---:|---:|
-| EUR/GBP | 20p | 30p | 1.50 | 13.5 |
-| AUD/USD | 15p | 22p | 1.47 | 10.0 |
+| EUR/GBP | 20p | 30p | 1.50 | 17.4 |
+| AUD/USD | 15p | 22p | 1.47 | 12.9 |
 
-`pip_value_usd` is the per-100k-units USD value of one pip. For USD-quoted
-pairs (AUD/USD) this is exactly 10. For non-USD-quoted pairs (EUR/GBP)
-it tracks the quote currency's USD rate — currently 13.5 for GBP/USD ≈ 1.35.
-Update this value in `pair_sl_tp.EUR_GBP.pip_value_usd` if GBP/USD moves
-materially (±0.10).
+`pip_value_usd` is per-100k-units, in **account home currency** (despite
+the `_usd` suffix — historical name). Account home is SGD on this deploy,
+so the values include the home-currency conversion factor. Update if
+SGD/USD or GBP/SGD moves materially (±0.05).
 
 ---
 

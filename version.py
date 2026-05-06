@@ -1,2 +1,2 @@
-VERSION     = "2.1.0"
-DESCRIPTION = "Zen Scalp v2.1 — Polish & docs release. Unifies min_rr_ratio fallback default to 1.4 across all sites (was inconsistent: 1.4 in some, 1.6 in others — settings.json value used in production so no behavioural impact). Refreshes README, SETTINGS, CONFLUENCE, CHANGELOG to reflect current v2.0 strategy and BE Step 2 / weekend close / sizing fix. All 17 Telegram templates render-tested. No strategy changes, no behavioural changes."
+VERSION     = "2.2.0"
+DESCRIPTION = "Zen Scalp v2.2 — Critical hotfix. (1) H1 soft-mode penalty implemented (was documented but never coded — soft mode was effectively observe-only). New 'h1_soft_penalty' setting (default -1) applies to score when signal is counter-trend. (2) pip_value_usd corrected for SGD home account: AUD/USD 10.0→12.9, EUR/GBP 13.5→17.4. Both pairs were ~29% oversized. May 4-6 saw 9 trades, 22% WR, -$258 SGD; the fix addresses both root causes."

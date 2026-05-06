@@ -98,7 +98,7 @@
     "EUR_GBP": {
       "sl_pips": 20,
       "tp_pips": 30,
-      "pip_value_usd": 13.5,
+      "pip_value_usd": 17.4,
       "be_trigger_pips": 15,
       "be_lock_pips": 3,
       "be_step2_trigger_pips": 25,
@@ -107,7 +107,7 @@
     "AUD_USD": {
       "sl_pips": 15,
       "tp_pips": 22,
-      "pip_value_usd": 10.0,
+      "pip_value_usd": 12.9,
       "be_trigger_pips": 11,
       "be_lock_pips": 3,
       "be_step2_trigger_pips": 18,
@@ -119,6 +119,7 @@
   "h1_filter_enabled": true,
   "h1_filter_mode": "soft",
   "h1_ema_period": 21,
+  "h1_soft_penalty": -1,
   "be_trigger_pips": 20,
   "bb_period": 20,
   "bb_std_dev": 2.0,

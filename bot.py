@@ -296,11 +296,16 @@ def validate_settings(settings: dict) -> dict:
     # minimum units after margin guard — reject micro-orders gracefully
     settings.setdefault("min_trade_units",           1000)
     # EUR/GBP + AUD/USD only
+    # v2.2: pip_value_usd is in account-home-currency per 100k units per pip.
+    # Account home = SGD, so values include the home-currency conversion:
+    #   AUD/USD (USD-quoted): 10.0 USD/pip × ~1.29 SGD/USD = ~12.9 SGD/pip
+    #   EUR/GBP (GBP-quoted): 13.5 USD/pip × ~1.29 SGD/USD = ~17.4 SGD/pip
+    # Update if SGD/USD or GBP/SGD moves materially (±0.05 from these levels).
     settings.setdefault("pair_sl_tp", {
-        "EUR_GBP": {"sl_pips": 20, "tp_pips": 30, "pip_value_usd": 13.5,
+        "EUR_GBP": {"sl_pips": 20, "tp_pips": 30, "pip_value_usd": 17.4,
                     "be_trigger_pips": 15, "be_lock_pips": 3,
                     "be_step2_trigger_pips": 25, "be_step2_lock_pips": 13},
-        "AUD_USD": {"sl_pips": 15, "tp_pips": 22, "pip_value_usd": 10.0,
+        "AUD_USD": {"sl_pips": 15, "tp_pips": 22, "pip_value_usd": 12.9,
                     "be_trigger_pips": 11, "be_lock_pips": 3,
                     "be_step2_trigger_pips": 18, "be_step2_lock_pips": 10},
     })
@@ -1571,11 +1576,32 @@ def _signal_phase(db, run_id, settings, alert, trader, history,
                 position_after=position_usd, position_before=raw_position_usd,
             ), instrument)
 
+    # v2.2 — H1 soft-mode penalty.
+    # In SOFT mode the H1 trend filter applies a -1 score penalty when the
+    # signal is counter-trend (h1_aligned=False AND h1_trend in BULLISH/BEARISH).
+    # In STRICT mode (handled later) the trade is blocked entirely.
+    # Until v2.2 the soft-mode penalty was documented in README/CONFLUENCE
+    # but never implemented in code — H1 was effectively observe-only,
+    # leading to 9/9 counter-trend trades during May 4-6 (78% loss rate).
+    h1_penalty = 0
+    _h1_mode    = settings.get("h1_filter_mode", "soft")
+    _h1_enabled = bool(settings.get("h1_filter_enabled", True))
+    _h1_trend   = levels.get("h1_trend", "UNKNOWN")
+    _h1_aligned = levels.get("h1_aligned", True)
+    if (_h1_enabled and _h1_mode == "soft" and not _h1_aligned and
+            _h1_trend not in ("UNKNOWN", "DISABLED", "FLAT")):
+        h1_penalty = int(settings.get("h1_soft_penalty", -1))
+        score        = max(score + h1_penalty, 0)
+        position_usd = score_to_position_usd(score, settings)
+        details      = details + f" | 📉 H1 counter-trend penalty ({h1_penalty:+d})"
+
     _tf = settings.get("candle_timeframe", "M15")
     db.record_signal(
         {"pair": instrument, "timeframe": _tf, "side": direction,
          "score": score, "raw_score": raw_score,
-         "news_penalty": news_penalty, "details": details, "levels": levels},
+         "news_penalty": news_penalty,
+         "h1_penalty": h1_penalty,
+         "details": details, "levels": levels},
         timeframe=_tf, run_id=run_id,
     )
 
@@ -1829,6 +1855,7 @@ def _signal_phase(db, run_id, settings, alert, trader, history,
     ctx.update({
         "score": score, "raw_score": raw_score, "direction": direction,
         "details": details, "levels": levels, "position_usd": position_usd,
+        "h1_penalty": h1_penalty,
         "entry": entry, "sl_price_dist": sl_price_dist, "tp_price_dist": tp_price_dist,
         "sl_usd": sl_usd, "tp_usd": tp_usd,
         "rr_ratio": rr_ratio, "units": units,
@@ -1874,6 +1901,7 @@ def _execution_phase(db, run_id, settings, alert, trader, history,
     margin_info      = ctx["margin_info"]
     eff_balance      = ctx["effective_balance"]
     news_penalty     = ctx["news_penalty"]
+    h1_penalty       = ctx.get("h1_penalty", 0)
     pip              = ctx["pip"]
     dp               = ctx["dp"]
 
@@ -1902,6 +1930,7 @@ def _execution_phase(db, run_id, settings, alert, trader, history,
         "score":                score,
         "raw_score":            raw_score,
         "news_penalty":         news_penalty,
+        "h1_penalty":           h1_penalty,
         "position_usd":         position_usd,
         "entry":                round(entry, dp),
         "sl_price":             sl_price,

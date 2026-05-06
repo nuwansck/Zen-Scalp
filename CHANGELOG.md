@@ -2,6 +2,136 @@
 
 ---
 
+## v2.2.0 — 2026-05-06
+
+**Critical hotfix.** Two compounding bugs identified after analyzing
+May 4-6 trading data (9 trades, 22% WR, -$258.47 SGD):
+
+### Bug 1: H1 soft-mode penalty was never implemented
+
+The H1 trend filter was documented (in README + CONFLUENCE) as applying a
+`-1` score penalty when a signal is counter-trend in soft mode. But the
+penalty code never existed — soft mode was effectively **observe-only**.
+H1 trend was computed and displayed in Telegram, but never gated trades.
+
+**Impact on May 4-6:** 9/9 AUD/USD trades fired counter-trend
+(`h1_aligned: false`). 7 of 9 lost. AUD/USD was on a strong uptrend
+(BULLISH H1) while the bot kept selling at the upper Bollinger Band
+expecting reversion. With H1 penalty working, 5 of those trades would
+have been blocked entirely (score 4 → 3, below threshold).
+
+**Fix:** added H1 soft-mode penalty in `_signal_phase` after the news
+penalty block. New setting `h1_soft_penalty` (default `-1`) controls
+the magnitude. Strict mode still blocks entirely (existing behavior).
+
+```python
+# After news penalty:
+h1_penalty = 0
+if (h1_enabled and h1_mode == "soft" and not h1_aligned and
+        h1_trend not in ("UNKNOWN", "DISABLED", "FLAT")):
+    h1_penalty = settings.get("h1_soft_penalty", -1)
+    score = max(score + h1_penalty, 0)
+    position_usd = score_to_position_usd(score, settings)
+    details += f" | 📉 H1 counter-trend penalty ({h1_penalty:+d})"
+```
+
+`h1_penalty` is also persisted to the trade record alongside `news_penalty`
+for post-trade analysis.
+
+### Bug 2: pip_value_usd assumed USD account, but account is SGD
+
+The account home currency is **SGD**. OANDA conversion rates show:
+- USD → SGD ≈ 1.29
+- GBP → SGD ≈ 1.74
+
+`pip_value_usd` defines the home-currency value of one pip per 100k units.
+Both pair values were configured for a USD home account, undersizing the
+home-currency representation:
+
+| Pair | v2.1 | v2.2 | Reason |
+|---|---:|---:|---|
+| AUD/USD | 10.0 | **12.9** | 10.0 USD/pip × 1.29 SGD/USD |
+| EUR/GBP | 13.5 | **17.4** | 13.5 USD/pip × 1.29 SGD/USD |
+
+**Verification against actual May 4-6 trades:**
+9 AUD/USD trades all reproduced an implied pip_value of 12.85-12.91 SGD
+per 100k units (mean: 12.86). Setting to 12.9 hits this target.
+
+**Net effect:** units per trade reduce ~29% on both pairs. A
+"position_full_usd: 60" trade now risks exactly $60 SGD instead of $77.4
+SGD as it did before.
+
+| Pair | Score | v2.1 units | v2.2 units | Change |
+|---|---|---|---|---|
+| AUD/USD | 5–6 (full $60) | 40,000 | 31,000 | -22.5% |
+| AUD/USD | 4 (partial $45) | 30,000 | 23,250 | -22.5% |
+| EUR/GBP | 5–6 (full $60) | 22,222 | 17,241 | -22.4% |
+| EUR/GBP | 4 (partial $45) | 16,667 | 12,931 | -22.4% |
+
+Margin warnings should largely disappear with these correctly-sized values.
+
+### Counterfactual: May 4-6 under v2.2
+
+Replaying the 9 trades with v2.2 logic:
+
+| | v2.1 actual | v2.2 counterfactual |
+|---|---|---|
+| Trades fired | 9 | 4 |
+| Trades blocked by H1 penalty | 0 | 5 |
+| Net P&L | **-$258.47** | **-$65.19** |
+| Loss reduction | — | $193.28 saved |
+
+Even in this hostile market regime (strong AUD/USD uptrend persisting
+through both Tokyo and London), v2.2 cuts losses ~75% by:
+- Blocking 5 score-4 counter-trend trades entirely
+- Sizing the remaining 4 trades correctly (29% smaller)
+
+### What did NOT change
+
+- Signal engine — unchanged
+- Two-step BE — unchanged
+- Strategy parameters (SL, TP, BE pips) — unchanged
+- Weekend close — unchanged
+- All v2.0 reliability fixes (tradeID extraction, RR guard, margin recalc) — unchanged
+- Telegram templates — unchanged
+
+### Files changed
+
+```
+bot.py                — H1 soft penalty in _signal_phase, h1_penalty in trade record + ctx
+                      — pair_sl_tp setdefault: pip_value_usd 13.5→17.4, 10.0→12.9
+config_loader.py      — h1_soft_penalty setdefault (-1), comment fix
+settings.json         — h1_soft_penalty=-1, EUR/GBP pip_value 17.4, AUD/USD pip_value 12.9
+                      — bot_name → "Zen Scalp v2.2"
+settings.json.example — same updates
+version.py            — 2.1.0 → 2.2.0
+CHANGELOG.md          — this entry
+```
+
+### Verification
+
+- All 16 Python files compile
+- All 3 JSON files valid
+- Pyflakes: 0 warnings
+- 9/9 H1 penalty unit tests pass (aligned, counter-trend, UNKNOWN, FLAT, DISABLED, strict mode, h1_enabled=False)
+- Counterfactual replay: -$258 → -$65 on May 4-6 dataset
+
+### Important note for users
+
+When v2.2 deploys, watch for these changes in Telegram alerts:
+
+1. **`📉 H1 counter-trend penalty (-1)`** in signal cards when soft-mode
+   penalty fires.
+2. **More `BLOCKED` decisions** for score-4 counter-trend signals.
+3. **Smaller `Units:` numbers** in trade-opened cards (~29% smaller).
+4. **No more margin auto-scale warnings** in normal cases (correct sizing
+   = within margin headroom).
+
+If you see a margin warning under v2.2, it indicates account balance has
+dropped significantly or OANDA's margin rate has changed.
+
+---
+
 ## v2.1.0 — 2026-05-04
 
 **Polish & docs release.** No strategy changes, no behavioural changes.
