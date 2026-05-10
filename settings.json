@@ -133,5 +133,7 @@
   "rsi_period": 14,
   "rsi_overbought": 70,
   "rsi_oversold": 30,
-  "candle_timeframe": "M15"
+  "candle_timeframe": "M15",
+  "news_fail_closed": true,
+  "calendar_cache_max_age_hours": 24
 }

@@ -1311,6 +1311,8 @@ def _guard_phase(db, run_id, settings, alert, history, now_sgt, today, demo,
             after_minutes   =int(settings.get("news_block_after_min",     30)),
             lookahead_minutes=int(settings.get("news_lookahead_min",      120)),
             medium_penalty  =int(settings.get("news_medium_penalty_score", -1)),
+            fail_closed     =bool(settings.get("news_fail_closed", True)),
+            max_cache_age_hours=int(settings.get("calendar_cache_max_age_hours", 24)),
         )
         news_status  = nf.get_status_now()
         blocked      = bool(news_status.get("blocked"))

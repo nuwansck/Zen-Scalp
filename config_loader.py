@@ -126,6 +126,8 @@ def load_settings() -> dict:
     settings.setdefault('db_vacuum_weekly', True)
     settings.setdefault('calendar_fetch_interval_min', 60)
     settings.setdefault('calendar_retry_after_min', 15)
+    settings.setdefault('news_fail_closed', True)
+    settings.setdefault('calendar_cache_max_age_hours', 24)
 
     # ── Persistent defaults — applied on startup if not in volume settings ───
     settings.setdefault('spread_limits', {'London': 4, 'US': 5, 'Tokyo': 4})

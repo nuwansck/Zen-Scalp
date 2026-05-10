@@ -129,5 +129,7 @@
   "candle_timeframe": "M15",
   "be_step2_enabled": true,
   "be_step2_trigger_pips": 25,
-  "be_step2_lock_pips": 13
+  "be_step2_lock_pips": 13,
+  "news_fail_closed": true,
+  "calendar_cache_max_age_hours": 24
 }
